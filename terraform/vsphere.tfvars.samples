@@ -1,0 +1,2 @@
+vsphere_user = "hoge"
+vsphere_password = "foo"

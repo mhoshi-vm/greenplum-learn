@@ -1,0 +1,4 @@
+terraform/*
+!terraform/main.tf
+!terraform/README.md
+!terraform/vsphere.tfvars.samples
