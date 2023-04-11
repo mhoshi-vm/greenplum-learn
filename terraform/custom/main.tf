@@ -28,7 +28,7 @@ variable "vsphere_storage_policy" {
 }
 variable "base_vm_name" {
   description = "Base VM with vmware-tools and Greenplum installed"
-  default = "gp-template-centos7"
+  default = "greenplum-db-centos7"
 }
 variable "resource_pool_name" {
   description= "The name of a dedicated resource pool for Greenplum VMs which will be created by Terraform"

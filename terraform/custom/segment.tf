@@ -10,6 +10,9 @@ data "template_file" "segment_userfile" {
     pxf_release_version = var.pxf_release_version
     pxf_product_id = var.pxf_product_id
     pxf_file_name = var.pxf_file_name
+    gpcc_release_version = var.gpcc_release_version
+    gpcc_product_id = var.gpcc_product_id
+    gpcc_file_name = var.gpcc_file_name
   }
 }
 

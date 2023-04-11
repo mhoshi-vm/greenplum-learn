@@ -9,7 +9,7 @@ variable "gpss_release_version" {
 }
 
 variable "gpss_product_id" {
-  default = "1442184"
+  default = "1442182"
 }
 variable "gpss_file_name" {
   default = "gpss-gpdb6-1.9.0-rhel7-x86_64.gppkg"
@@ -26,3 +26,13 @@ variable "pxf_file_name" {
   default = "pxf-gp6-6.6.0-2.el7.x86_64.rpm"
 }
 
+variable "gpcc_release_version" {
+  default = "6.8.4"
+}
+
+variable "gpcc_product_id" {
+  default = "1414098"
+}
+variable "gpcc_file_name" {
+  default = "greenplum-cc-web-6.8.4-gp6-rhel7-x86_64.zip"
+}

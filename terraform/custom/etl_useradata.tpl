@@ -2,9 +2,10 @@
 runcmd:
   - |
     set -x
-    tdnf install docker -y
+    yum install docker -y
     
     systemctl  start docker
+    systemctl enable docker
     mkdir -p /rabbitmq
     
     cat <<EOF > /rabbitmq/rabbitmq.conf
@@ -46,9 +47,9 @@ runcmd:
     
     chmod 644 /rabbitmq/rabbitmq.conf /rabbitmq/definitions.json
     
-    docker run -d -v /rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf -v /rabbitmq/definitions.json:/etc/rabbitmq/definitions.json --rm -it -p 15672:15672 -p 5672:5672  harbor.lespaulstudioplus.info/dockerhub/library/rabbitmq:3-management
+    docker run -d -v /rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf -v /rabbitmq/definitions.json:/etc/rabbitmq/definitions.json --rm -it -p 15672:15672 -p 5672:5672  harbor.cl01.lespaulstudioplus.info/docker-hub/library/rabbitmq:3-management
 
-    tdnf install -y nfs-utils
+    yum install -y nfs-utils
     systemctl enable rpcbind
     systemctl start rpcbind
     systemctl enable nfs-server
