@@ -8,9 +8,14 @@ variable "vsphere_user" {
 variable "vsphere_password" {
   type = string
 }
+
+variable "root_password" {
+  type = string
+}
+
 variable "vsphere_server" {
+  type = string
   description = "Enter the address of the vCenter, either as an FQDN (preferred) or an IP address"
-  default = "vc01.h2o-4-107.h2o.vmware.com"
 }
 variable "vsphere_datacenter" {
   default = "vc01"
@@ -50,7 +55,7 @@ variable "gp_virtual_etl_bar_network" {
 variable "gp_virtual_external_ipv4_addresses" {
   type = list(string)
   description = "The routable IP addresses for mdw and smdw, in that order (skip smdw IP address for mirroless deployment)"
-  default = ["192.168.101.10" ]
+  default = ["192.168.100.10" , "192.168.100.100", "192.168.100.150"]
 }
 variable "gp_virtual_external_ipv4_netmask" {
   description = "Netmask bitcount, e.g. 24"
@@ -58,7 +63,7 @@ variable "gp_virtual_external_ipv4_netmask" {
 }
 variable "gp_virtual_external_gateway" {
   description = "Gateway for the gp-virtual-external network, e.g. 10.0.0.1"
-  default = "192.168.101.1"
+  default = "192.168.100.1"
 }
 variable "dns_servers" {
   type = list(string)
@@ -69,7 +74,7 @@ variable "dns_servers" {
 variable "gp_virtual_etl_bar_ipv4_cidr" {
   type = string
   description = "The leading octets for the data backup (doesn't have to be routable) network IP range, e.g. '192.168.2.0/24' or '172.17.0.0/21'"
-  default = "192.168.100.0/24"
+  default = "192.168.102.0/24"
 }
 ######################
 # terraform scripts
@@ -175,6 +180,10 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     network_id = data.vsphere_network.gp_virtual_etl_bar_network.id
   }
 
+  network_interface {
+    network_id = data.vsphere_network.gp_virtual_external_network.id
+  }
+
   swap_placement_policy = "vmDirectory"
   enable_disk_uuid = "true"
   disk {
@@ -215,10 +224,17 @@ resource "vsphere_virtual_machine" "segment_hosts" {
         ipv4_address = cidrhost(var.gp_virtual_etl_bar_ipv4_cidr, count.index + local.segment_gp_virtual_etl_bar_ipv4_offset)
         ipv4_netmask = local.gp_virtual_etl_bar_ipv4_netmask
       }
+
+      network_interface {
+        ipv4_netmask = var.gp_virtual_external_ipv4_netmask
+      }
+
+      ipv4_gateway = var.gp_virtual_external_gateway
+      dns_server_list = var.dns_servers
     }
   }
   vapp {
-    properties = data.vsphere_virtual_machine.template.vapp[0].properties
+    properties = merge(data.vsphere_virtual_machine.template.vapp[0].properties ,{ "user-data" = base64encode(data.template_file.gpss_db_userfile.rendered) })
   }
 }
 
@@ -304,7 +320,7 @@ resource "vsphere_virtual_machine" "master_hosts" {
   }
 
   vapp {
-    properties = data.vsphere_virtual_machine.template.vapp[0].properties
+    properties = merge(data.vsphere_virtual_machine.template.vapp[0].properties ,{ "user-data" = base64encode(data.template_file.gpss_master_userfile.rendered) })
   }
 }
 

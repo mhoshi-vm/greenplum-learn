@@ -1,0 +1,33 @@
+DATABASE: gpss
+USER: gpadmin
+PASSWORD: password
+HOST: localhost
+PORT: 5432
+VERSION: 2
+RABBITMQ:
+  INPUT:
+    SOURCE:
+      SERVER: guest:guest@192.168.102.249:5672
+      QUEUE: gpss
+      VIRTUALHOST: /
+    DATA:
+      COLUMNS:
+      - NAME: item
+        TYPE: json
+      FORMAT: json
+    ERROR_LIMIT: 25
+  OUTPUT:
+    TABLE: social_message_data
+    MODE: INSERT
+    # https://www.postgresql.org/docs/12/functions-json.html
+    MAPPING:
+    - NAME: origin
+      EXPRESSION: (item->>'origin')::text
+    - NAME: id
+      EXPRESSION: (item#>>'{data,id}')::text
+    - NAME: text
+      EXPRESSION: (item#>>'{data,text}')::text
+    - NAME: lang
+      EXPRESSION: (item#>>'{data,lang}')::text
+    - NAME: names
+      EXPRESSION: (item#>>'{includes,users}')::json
