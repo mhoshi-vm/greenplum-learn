@@ -36,3 +36,36 @@ variable "gpcc_product_id" {
 variable "gpcc_file_name" {
   default = "greenplum-cc-web-6.8.4-gp6-rhel7-x86_64.zip"
 }
+
+variable "plc_release_version" {
+  default = "6.24.0"
+}
+
+variable "plc_product_id" {
+  default = "1466063"
+}
+variable "plc_file_name" {
+  default = "plcontainer-2.2.0-gp6-rhel7_x86_64.gppkg"
+}
+
+variable "plcpy3_release_version" {
+  default = "6.24.0"
+}
+
+variable "plcpy3_product_id" {
+  default = "1466146"
+}
+variable "plcpy3_file_name" {
+  default = "plcontainer-python3-image-2.1.4-gp6.tar.gz"
+}
+
+variable "plcpy_release_version" {
+  default = "6.24.0"
+}
+
+variable "plcpy_product_id" {
+  default = "1466141"
+}
+variable "plcpy_file_name" {
+  default = "plcontainer-python-image-2.1.3-gp6.tar.gz"
+}

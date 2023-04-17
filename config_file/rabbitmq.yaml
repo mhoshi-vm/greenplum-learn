@@ -7,7 +7,7 @@ VERSION: 2
 RABBITMQ:
   INPUT:
     SOURCE:
-      SERVER: guest:guest@192.168.102.249:5672
+      SERVER: guest:guest@192.168.102.243:5672
       QUEUE: gpss
       VIRTUALHOST: /
     DATA:

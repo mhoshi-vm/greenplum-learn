@@ -13,6 +13,15 @@ data "template_file" "master_userfile" {
     gpcc_release_version = var.gpcc_release_version
     gpcc_product_id = var.gpcc_product_id
     gpcc_file_name = var.gpcc_file_name
+    plc_release_version = var.plc_release_version
+    plc_product_id = var.plc_product_id
+    plc_file_name = var.plc_file_name
+    plcpy3_release_version = var.plcpy3_release_version
+    plcpy3_product_id = var.plcpy3_product_id
+    plcpy3_file_name = var.plcpy3_file_name
+    plcpy_release_version = var.plcpy_release_version
+    plcpy_product_id = var.plcpy_product_id
+    plcpy_file_name = var.plcpy_file_name
   }
 }
 

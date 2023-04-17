@@ -135,9 +135,11 @@ write_files:
 runcmd:
   - |
     set -x
+    sleep 30
     export HOME=/root
 
     su - gpadmin <<EOF
+      set -x
       bash create_gpinitsystem_config.sh 2
       gpinitsystem -a -I gpinitsystem_config -p gp_guc_config
       gpssh -f /home/gpadmin/hosts-all "sudo systemctl enable gpdb.service"
@@ -145,7 +147,6 @@ runcmd:
       gpssh -f /home/gpadmin/hosts-all "systemctl status gpdb.service"
     EOF
 
-    sleep 30
     wget -O /usr/local/bin/pivnet ${pivnet_url}
     chmod +x /usr/local/bin/pivnet
     pivnet login --api-token='${pivnet_api_token}'
@@ -159,9 +160,18 @@ runcmd:
     rpm -Uvh /home/gpadmin/${pxf_file_name}
 
     chown -R gpadmin:gpadmin /usr/local/pxf-gp*
+    cp /usr/local/pxf-gp6/gpextable/pxf.control /usr/local/greenplum-db-6.24.0/share/postgresql/extension/pxf.control
 
     echo 'export PATH=$PATH:/usr/local/pxf-gp6/bin' >> /home/gpadmin/.bashrc
-    cho 'export JAVA_HOME=/usr/lib/jvm/jre'  >> /home/gpadmin/.bashrc
+    echo 'export JAVA_HOME=/usr/lib/jvm/jre'  >> /home/gpadmin/.bashrc
+    echo 'export MASTER_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
+    echo 'export GPHOME=/usr/local/greenplum-db' >> /home/gpadmin/.bashrc
+    echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
+    echo 'export LD_LIBRARY_PATH=$GPHOME/lib' >> /home/gpadmin/.bashrc
+    
+
+    chown -R gpadmin:gpadmin /usr/local/greenplum-db*
+    chgrp -R gpadmin /usr/local/greenplum-db*
 
     yum install -y nfs-utils unzip
     mkdir -p /nfs
@@ -182,11 +192,36 @@ runcmd:
     pivnet download-product-files --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' --product-file-id=${gpcc_product_id} -d /home/gpadmin
     chmod 644 /home/gpadmin/${gpcc_file_name}
 
+    cat <<EOC > /home/gpadmin/gpsscfg1.json
+    {
+           "Gpfdist": {
+               "Host": "mdw"
+           }
+    }
+    EOC
+    chown gpadmin:gpadmin /home/gpadmin/gpsscfg1.json
+
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    yum makecache fast
+    yum -y install docker-ce
+    systemctl start docker
+    usermod -aG docker gpadmin
+    systemctl enable docker.service
+
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plc_release_version}' --product-file-id=${plc_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${plc_file_name}
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy3_release_version}' --product-file-id=${plcpy3_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${plcpy3_file_name}
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy_release_version}' --product-file-id=${plcpy_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${plcpy_file_name}
+ 
+
     su - gpadmin <<EOF
       set -x
       . /usr/local/greenplum-db/greenplum_path.sh
       gppkg -i /home/gpadmin/${gpss_file_name}
-      nohup gpss &
+      nohup gpss -c /home/gpadmin/gpsscfg1.json &
       createdb "gpss"
       psql -d gpss -c "CREATE EXTENSION gpss"
       psql -d gpss -c "CREATE USER gpss_user WITH PASSWORD 'password'"
@@ -199,11 +234,24 @@ runcmd:
       createdb "pxf"
       psql -d pxf -c "CREATE EXTENSION pxf"
       psql -d pxf -c "CREATE EXTERNAL TABLE pxf_read_nfs(location text, month text, num_orders int, total_sales float8) LOCATION ('pxf://ex1/?PROFILE=file:text&SERVER=nfssrvcfg') FORMAT 'CSV'"
+
       unzip /home/gpadmin/${gpcc_file_name} -d /home/gpadmin/
       cd greenplum-cc-web-${gpcc_release_version}-gp6-rhel7-x86_64
-      export MASTER_DATA_DIRECTORY=/gpdata/master/gpseg-1
       gpstop -u
       ./gpccinstall-${gpcc_release_version} -c /home/gpadmin/gpcc_config
       source /usr/local/greenplum-cc/gpcc_path.sh
       gpcc start
+    EOF
+
+    su - gpadmin <<EOF
+      source /usr/local/greenplum-cc/gpcc_path.sh
+      gpcc start
+
+      gppkg -i /home/gpadmin/${plc_file_name}
+      source /usr/local/greenplum-db/greenplum_path.sh
+      plcontainer image-add -f /home/gpadmin/${plcpy3_file_name}
+      plcontainer image-add -f /home/gpadmin/${plcpy_file_name}
+      plcontainer image-list
+      plcontainer runtime-add -r plc_python_shared -i pivotaldata/plcontainer_python_shared:devel -l python
+      plcontainer runtime-add -r plc_python3_shared -i pivotaldata/plcontainer_python3_shared:devel -l python3
     EOF
