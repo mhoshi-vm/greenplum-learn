@@ -37,6 +37,17 @@ variable "gpcc_file_name" {
   default = "greenplum-cc-web-6.8.4-gp6-rhel7-x86_64.zip"
 }
 
+variable "gptext_release_version" {
+  default = "6.24.0"
+}
+
+variable "gptext_product_id" {
+  default = "1466135"
+}
+variable "gptext_file_name" {
+  default = "greenplum-text-3.10.0-rhel7_x86_64.tar.gz"
+}
+
 variable "plc_release_version" {
   default = "6.24.0"
 }

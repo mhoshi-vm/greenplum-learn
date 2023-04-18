@@ -41,3 +41,11 @@ runcmd:
     systemctl start docker
     usermod -aG docker gpadmin
     systemctl enable docker.service
+
+    yum install lsof
+    mkdir /usr/local/greenplum-text-3.10.0
+    mkdir /usr/local/greenplum-solr
+    chown gpadmin:gpadmin /usr/local/greenplum-text-3.10.0
+    chmod 775 /usr/local/greenplum-text-3.10.0
+    chown gpadmin:gpadmin /usr/local/greenplum-solr
+    chmod 775 /usr/local/greenplum-solr

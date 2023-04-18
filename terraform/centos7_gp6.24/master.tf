@@ -22,6 +22,9 @@ data "template_file" "master_userfile" {
     plcpy_release_version = var.plcpy_release_version
     plcpy_product_id = var.plcpy_product_id
     plcpy_file_name = var.plcpy_file_name
+    gptext_release_version = var.gptext_release_version
+    gptext_product_id = var.gptext_product_id
+    gptext_file_name = var.gptext_file_name
   }
 }
 

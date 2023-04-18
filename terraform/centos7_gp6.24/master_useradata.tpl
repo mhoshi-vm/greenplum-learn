@@ -58,6 +58,23 @@ write_files:
     # User interface language: 1=English, 2=Chinese, 3=Korean, 4=Russian, 5=Japanese
     language = 5
 - owner: gpadmin:gpadmin
+  path: /home/gpadmin/gptext_install_config_2
+  permissions: '0644'
+  content: |
+    # FILE NAME: gptext_install_config
+    GPTEXT_HOSTS="ALLSEGHOSTS"
+    declare -a DATA_DIRECTORY=(/gpdata/primary /gpdata/primary)
+    JAVA_OPTS="-Xms1024M -Xmx1024M"
+    GPTEXT_PORT_BASE=18983
+    GP_MAX_PORT_LIMIT=28983
+    ZOO_CLUSTER="BINDING"
+    declare -a ZOO_HOSTS=(mdw mdw mdw)
+    ZOO_DATA_DIR="/gpdata/master/"
+    ZOO_GPTXTNODE="gptext"
+    ZOO_PORT_BASE=2188
+    ZOO_MAX_PORT_LIMIT=12188
+
+- owner: gpadmin:gpadmin
   path: /tmp/pxf-site.xml
   permissions: '0644'
   content: |
@@ -169,7 +186,6 @@ runcmd:
     echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
     echo 'export LD_LIBRARY_PATH=$GPHOME/lib' >> /home/gpadmin/.bashrc
     
-
     chown -R gpadmin:gpadmin /usr/local/greenplum-db*
     chgrp -R gpadmin /usr/local/greenplum-db*
 
@@ -216,6 +232,16 @@ runcmd:
     pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy_release_version}' --product-file-id=${plcpy_product_id} -d /home/gpadmin
     chmod 644 /home/gpadmin/${plcpy_file_name}
  
+    yum install lsof
+    mkdir /usr/local/greenplum-text-3.10.0
+    mkdir /usr/local/greenplum-solr
+    chown gpadmin:gpadmin /usr/local/greenplum-text-3.10.0
+    chmod 775 /usr/local/greenplum-text-3.10.0
+    chown gpadmin:gpadmin /usr/local/greenplum-solr
+    chmod 775 /usr/local/greenplum-solr
+
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gptext_release_version}' --product-file-id=${gptext_product_id} -d /home/gpadmin
+    tar xzvf /home/gpadmin/${gptext_file_name} -C /home/gpadmin
 
     su - gpadmin <<EOF
       set -x
