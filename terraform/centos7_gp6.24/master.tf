@@ -25,6 +25,15 @@ data "template_file" "master_userfile" {
     gptext_release_version = var.gptext_release_version
     gptext_product_id = var.gptext_product_id
     gptext_file_name = var.gptext_file_name
+    madlib_release_version = var.madlib_release_version
+    madlib_product_id = var.madlib_product_id
+    madlib_file_name = var.madlib_file_name
+    dspython_release_version = var.dspython_release_version
+    dspython_product_id = var.dspython_product_id
+    dspython_file_name = var.dspython_file_name
+    postgis_release_version = var.postgis_release_version
+    postgis_product_id = var.postgis_product_id
+    postgis_file_name = var.postgis_file_name
   }
 }
 

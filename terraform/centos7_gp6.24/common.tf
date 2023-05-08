@@ -48,6 +48,17 @@ variable "gptext_file_name" {
   default = "greenplum-text-3.10.0-rhel7_x86_64.tar.gz"
 }
 
+variable "madlib_release_version" {
+  default = "6.24.0"
+}
+
+variable "madlib_product_id" {
+  default = "1466074"
+}
+variable "madlib_file_name" {
+  default = "madlib-1.21.0+1-gp6-rhel7-x86_64.tar.gz"
+}
+
 variable "plc_release_version" {
   default = "6.24.0"
 }
@@ -79,4 +90,26 @@ variable "plcpy_product_id" {
 }
 variable "plcpy_file_name" {
   default = "plcontainer-python-image-2.1.3-gp6.tar.gz"
+}
+
+variable "dspython_release_version" {
+  default = "6.24.0"
+}
+
+variable "dspython_product_id" {
+  default = "1466138"
+}
+variable "dspython_file_name" {
+  default = "DataSciencePython2.7-2.0.6-gp6-rhel7_x86_64.gppkg"
+}
+
+variable "postgis_release_version" {
+  default = "6.24.0"
+}
+
+variable "postgis_product_id" {
+  default = "1466097"
+}
+variable "postgis_file_name" {
+  default = "postgis-2.5.4+pivotal.8.build.1-gp6-rhel7-x86_64.gppkg"
 }

@@ -217,32 +217,6 @@ runcmd:
     EOC
     chown gpadmin:gpadmin /home/gpadmin/gpsscfg1.json
 
-    yum install -y yum-utils device-mapper-persistent-data lvm2
-    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-    yum makecache fast
-    yum -y install docker-ce
-    systemctl start docker
-    usermod -aG docker gpadmin
-    systemctl enable docker.service
-
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plc_release_version}' --product-file-id=${plc_product_id} -d /home/gpadmin
-    chmod 644 /home/gpadmin/${plc_file_name}
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy3_release_version}' --product-file-id=${plcpy3_product_id} -d /home/gpadmin
-    chmod 644 /home/gpadmin/${plcpy3_file_name}
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy_release_version}' --product-file-id=${plcpy_product_id} -d /home/gpadmin
-    chmod 644 /home/gpadmin/${plcpy_file_name}
- 
-    yum install lsof
-    mkdir /usr/local/greenplum-text-3.10.0
-    mkdir /usr/local/greenplum-solr
-    chown gpadmin:gpadmin /usr/local/greenplum-text-3.10.0
-    chmod 775 /usr/local/greenplum-text-3.10.0
-    chown gpadmin:gpadmin /usr/local/greenplum-solr
-    chmod 775 /usr/local/greenplum-solr
-
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gptext_release_version}' --product-file-id=${gptext_product_id} -d /home/gpadmin
-    tar xzvf /home/gpadmin/${gptext_file_name} -C /home/gpadmin
-
     su - gpadmin <<EOF
       set -x
       . /usr/local/greenplum-db/greenplum_path.sh
@@ -261,23 +235,70 @@ runcmd:
       psql -d pxf -c "CREATE EXTENSION pxf"
       psql -d pxf -c "CREATE EXTERNAL TABLE pxf_read_nfs(location text, month text, num_orders int, total_sales float8) LOCATION ('pxf://ex1/?PROFILE=file:text&SERVER=nfssrvcfg') FORMAT 'CSV'"
 
+      createdb "twitter"
+      psql -d twitter -c "CREATE USER twitter SUPERUSER LOGIN PASSWORD 'password'"
+      psql -d twitter -c "GRANT ALL PRIVILEGES ON DATABASE twitter TO twitter"
+      echo 'host	twitter	twitter	0.0.0.0/0	password' >> /gpdata/master/gpseg-1/pg_hba.conf
+
       unzip /home/gpadmin/${gpcc_file_name} -d /home/gpadmin/
       cd greenplum-cc-web-${gpcc_release_version}-gp6-rhel7-x86_64
       gpstop -u
       ./gpccinstall-${gpcc_release_version} -c /home/gpadmin/gpcc_config
+    EOF
+
+    su - gpadmin <<EOF
+      set -x
       source /usr/local/greenplum-cc/gpcc_path.sh
       gpcc start
     EOF
 
-    su - gpadmin <<EOF
-      source /usr/local/greenplum-cc/gpcc_path.sh
-      gpcc start
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    yum makecache fast
+    yum -y install docker-ce
+    systemctl start docker
+    usermod -aG docker gpadmin
+    systemctl enable docker.service
 
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plc_release_version}' --product-file-id=${plc_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${plc_file_name}
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy3_release_version}' --product-file-id=${plcpy3_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${plcpy3_file_name}
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${plcpy_release_version}' --product-file-id=${plcpy_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${plcpy_file_name}
+
+    yum install -y lsof nc
+    mkdir /usr/local/greenplum-text-3.10.0
+    mkdir /usr/local/greenplum-solr
+    chown gpadmin:gpadmin /usr/local/greenplum-text-3.10.0
+    chmod 775 /usr/local/greenplum-text-3.10.0
+    chown gpadmin:gpadmin /usr/local/greenplum-solr
+    chmod 775 /usr/local/greenplum-solr
+
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gptext_release_version}' --product-file-id=${gptext_product_id} -d /home/gpadmin
+    tar xzvf /home/gpadmin/${gptext_file_name} -C /home/gpadmin
+
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${madlib_release_version}' --product-file-id=${madlib_product_id} -d /home/gpadmin
+    tar xzvf /home/gpadmin/${madlib_file_name} -C /home/gpadmin
+
+    yum install -y tk
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${dspython_release_version}' --product-file-id=${dspython_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${dspython_file_name}
+
+    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${postgis_release_version}' --product-file-id=${postgis_product_id} -d /home/gpadmin
+    chmod 644 /home/gpadmin/${postgis_file_name}
+
+    su - gpadmin <<EOF
+      set -x
+      gppkg -i /home/gpadmin/${dspython_file_name}
+      gppkg -i /home/gpadmin/${postgis_file_name}
       gppkg -i /home/gpadmin/${plc_file_name}
+      gppkg -i /home/gpadmin/${madlib_file_name}
       source /usr/local/greenplum-db/greenplum_path.sh
       plcontainer image-add -f /home/gpadmin/${plcpy3_file_name}
       plcontainer image-add -f /home/gpadmin/${plcpy_file_name}
       plcontainer image-list
       plcontainer runtime-add -r plc_python_shared -i pivotaldata/plcontainer_python_shared:devel -l python
       plcontainer runtime-add -r plc_python3_shared -i pivotaldata/plcontainer_python3_shared:devel -l python3
+      gpstop -M fast -ra
     EOF
