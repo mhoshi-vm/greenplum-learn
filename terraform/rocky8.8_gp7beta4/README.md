@@ -144,3 +144,14 @@ terraform plan -var-file=gp.tfvars
 terraform apply -var-file=gp.tfvars
 ```
 
+# Install pgvector
+```
+ yum install postgresql-devel
+yum install postgresql-server-devel
+yum install clang
+yum install llvm
+https://vmware.slack.com/archives/C057Q847HUN/p1686144366397529?thread_ts=1686143976.399229&cid=C057Q847HUN
+export PG_CONFIG=/usr/local/greenplum-db/bin/pg_config
+make
+make install
+```

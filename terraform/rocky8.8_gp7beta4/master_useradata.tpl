@@ -10,10 +10,6 @@ write_files:
     gp_interconnect_queue_depth=16
     gp_interconnect_snd_queue_depth=16
     
-    # Since you have one segment per VM and less competing workloads per VM,
-    # you can set the memory limit for resource group higher than the default
-    gp_resource_group_memory_limit=0.85
-    
     # This value should be 5% of the total RAM on the VM
     statement_mem=460MB
     
@@ -29,7 +25,7 @@ write_files:
     # Mirrorless GUCs
     wal_level=minimal
     max_wal_senders=0
-    wal_keep_segments=0
+    wal_keep_size=0
     max_replication_slots=0
     gp_dispatch_keepalives_idle=20
     gp_dispatch_keepalives_interval=20
@@ -86,6 +82,7 @@ runcmd:
 
     su - gpadmin <<EOF
       set -x
+      source /usr/local/greenplum-db/greenplum_path.sh
       bash create_gpinitsystem_config.sh ${seg_count}
       gpinitsystem -a -I gpinitsystem_config -p gp_guc_config
       gpssh -f /home/gpadmin/hosts-all "sudo systemctl enable gpdb.service"
@@ -104,7 +101,7 @@ runcmd:
     rpm -Uvh /home/gpadmin/${pxf_file_name}
 
 
-    echo 'export PATH=$PATH:/usr/local/pxf-gp6/bin' >> /home/gpadmin/.bashrc
+    echo 'export PATH=$PATH:/usr/local/pxf-gp7/bin' >> /home/gpadmin/.bashrc
     echo 'export JAVA_HOME=/usr/lib/jvm/jre'  >> /home/gpadmin/.bashrc
     echo 'export MASTER_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
     echo 'export GPHOME=/usr/local/greenplum-db' >> /home/gpadmin/.bashrc
@@ -116,7 +113,6 @@ runcmd:
 
     yum install -y yum-utils device-mapper-persistent-data lvm2
     yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-    yum makecache fast
     yum -y install docker-ce
     systemctl start docker
     usermod -aG docker gpadmin
@@ -137,10 +133,10 @@ runcmd:
 
     su - gpadmin <<EOF
       set -x
-      gppkg -i /home/gpadmin/${dspython_file_name}
-      gppkg -i /home/gpadmin/${postgis_file_name}
-      gppkg -i /home/gpadmin/${plc_file_name}
-      gppkg -i /home/gpadmin/madlib*/${madlib_file_name}
       source /usr/local/greenplum-db/greenplum_path.sh
+      gppkg -a install /home/gpadmin/${dspython_file_name}
+      gppkg -a install /home/gpadmin/${postgis_file_name}
+      gppkg -a install /home/gpadmin/${plc_file_name}
+      gppkg -a install /home/gpadmin/madlib*/${madlib_file_name}
       gpstop -M fast -ra
     EOF
