@@ -36,9 +36,20 @@ AS $$
 $$;
 
 
-CREATE TABLE document AS
-SELECT id, term, title, abstract, generate_embeddings(abstract)
-FROM archive;
+CREATE TABLE document WITH (appendoptimized = TRUE, orientation = COLUMN)
+AS SELECT id, term, title, abstract, generate_embeddings(abstract)
+FROM archive DISTRIBUTED BY (id);
+
+CREATE FUNCTION sentence_search (content text)
+  RETURNS sentence_table
+  LANGUAGE sql
+AS $$
+SELECT t.title, t.generate_embeddings <=> generate_embeddings(content) AS distance 
+  FROM documents t
+    ORDER BY t.generate_embeddings <=> generate_embeddings(content)
+ ASC LIMIT 1 ;
+$$
+
 ```
 
 
