@@ -160,14 +160,6 @@ runcmd:
       gpinitsystem -a -I gpinitsystem_config -p gp_guc_config
     EOF
 
-    su - gpadmin <<EOF
-      set -x
-      source /usr/local/greenplum-db/greenplum_path.sh
-      gpssh -f /home/gpadmin/hosts-all "sudo systemctl enable gpdb.service"
-      gpssh -f /home/gpadmin/hosts-all "sudo systemctl start gpdb.service"
-      gpssh -f /home/gpadmin/hosts-all "systemctl status gpdb.service"
-    EOF
-
     if [[ -f /home/gpadmin/gp_downloads/pxf* ]]
     then
       yum -y install java-1.8.0-openjdk-1.8.0*
