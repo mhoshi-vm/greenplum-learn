@@ -1,0 +1,16 @@
+VERSION: 1.0.0.1
+DATABASE: gpload
+USER: gpadmin
+PASSWORD: password
+HOST: localhost
+PORT: 5432
+GPLOAD:
+   INPUT:
+    - SOURCE:
+         PORT: 8081
+         FILE:
+           - /nfs/ex1/somedata.csv
+    - FORMAT: CSV
+   OUTPUT:
+    - TABLE: public.test
+    - MODE: INSERT
