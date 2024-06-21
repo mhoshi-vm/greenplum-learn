@@ -62,9 +62,12 @@ runcmd:
 
     /root/update-etc-hosts.sh ${internal_cidr} ${seg_count} ${offset}
 
-    sleep 10
+    sleep 60
     echo "proxy=http://mdw:3128" >> /etc/yum.conf
     yum update -y
+
+    export http_proxy=http://mdw:3128
+    export https_proxy=http://mdw:3128
 
     echo mdw > /home/gpadmin/hosts-all
     > /home/gpadmin/hosts-segments

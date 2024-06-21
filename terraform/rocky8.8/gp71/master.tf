@@ -8,6 +8,7 @@ locals {
     pivnet_url = var.pivnet_url
     gp_release_version = var.gp_release_version
     gpcc_release_version = var.gpcc_release_version
+    gpcopy_release_version = var.gpcopy_release_version
   }
 }
 

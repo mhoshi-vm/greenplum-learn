@@ -12,3 +12,7 @@ variable "gp_release_version" {
 variable "gpcc_release_version" {
   default = "7.1.1"
 }
+
+variable "gpcopy_release_version" {
+  default = "2.6.0"
+}

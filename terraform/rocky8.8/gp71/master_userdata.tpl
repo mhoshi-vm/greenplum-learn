@@ -184,7 +184,7 @@ runcmd:
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
 
-    sleep 30
+    sleep 60
 
     su - gpadmin <<EOF
       set -x
@@ -205,6 +205,7 @@ runcmd:
     fi
 
     echo 'export COORDINATOR_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
+    echo 'export PGDATABASE=template1' >> /home/gpadmin/.bashrc
     echo 'export GPHOME=/usr/local/greenplum-db' >> /home/gpadmin/.bashrc
     echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
     echo 'export LD_LIBRARY_PATH=$GPHOME/lib' >> /home/gpadmin/.bashrc
@@ -213,8 +214,7 @@ runcmd:
     chgrp -R gpadmin /usr/local/greenplum-db*
 
     # Enable postgresml
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'DataSciencePython-*-el8_x86_64.gppkg' -d /home/gpadmin/gp_downloads
-
+    pivnet download-product-files --product-slug=vmware-greenplum --release-version=7.1.0 -g 'DataSciencePython*el8_x86_64.gppkg' -d /home/gpadmin/gp_downloads
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
@@ -253,4 +253,15 @@ runcmd:
       cd /usr/local/greenplum-cc/gppkg
       gppkg install -a --force MetricsCollector-${gpcc_release_version}_gp_${gp_release_version}-rocky8-x86_64.gppkg
       gpcc start
+    EOF
+
+    pivnet download-product-files --product-slug='gpdb-data-copy' --release-version='${gpcopy_release_version}'  -g 'gpcopy-*.tar.gz' -d /home/gpadmin/gp_downloads
+    tar xzvf /home/gpadmin/gp_downloads/gpcopy-*.tar.gz -C /home/gpadmin
+    cp /home/gpadmin/gpcopy-*/gpcopy* /usr/local/greenplum-db/bin/
+    chmod 755 /usr/local/greenplum-db/bin/gpcopy*
+    chown gpadmin:gpadmin /usr/local/greenplum-db/bin/gpcopy*
+
+    su - gpadmin <<EOF
+      set -x
+      gpsync -f hosts-segments /usr/local/greenplum-db/bin/gpcopy_helper =:/usr/local/greenplum-db/bin
     EOF
