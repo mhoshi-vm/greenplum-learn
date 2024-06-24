@@ -102,6 +102,12 @@ runcmd:
     echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
     echo 'export LD_LIBRARY_PATH=$GPHOME/lib' >> /home/gpadmin/.bashrc
 
+    mkdir -p /usr/local/greenplum-db/etc/environment.d/
+    cat <<EOF > /usr/local/greenplum-db/etc/environment.d/20-proxy.conf
+    export http_proxy=http://mdw:3128
+    export https_proxy=http://mdw:3128
+    EOF
+
     chown -R gpadmin:gpadmin /usr/local/greenplum-db*
     chgrp -R gpadmin /usr/local/greenplum-db*
 

@@ -226,7 +226,7 @@ runcmd:
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
-      gpconfig -c pgml.venv -v '$GPHOME/ext/DataSciencePython3.9'
+      gpconfig -c pgml.venv -v '/usr/local/greenplum-db/ext/DataSciencePython3.9/'
       gpstop -u
     EOF
 
