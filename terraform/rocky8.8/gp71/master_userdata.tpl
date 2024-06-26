@@ -177,9 +177,9 @@ runcmd:
     chmod +x /usr/local/bin/pivnet
     pivnet login --api-token='${pivnet_api_token}' 
     mkdir /home/gpadmin/gp_downloads/
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
-    pivnet download-product-files --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*-el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*-el8-*' -d /home/gpadmin/gp_downloads
 
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
@@ -214,7 +214,7 @@ runcmd:
     chgrp -R gpadmin /usr/local/greenplum-db*
 
     # Enable postgresml
-    pivnet download-product-files --product-slug=vmware-greenplum --release-version=7.1.0 -g 'DataSciencePython*el8_x86_64.gppkg' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version=7.1.0 -g 'DataSciencePython*el8_x86_64.gppkg' -d /home/gpadmin/gp_downloads
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
@@ -255,7 +255,7 @@ runcmd:
       gpcc start
     EOF
 
-    pivnet download-product-files --product-slug='gpdb-data-copy' --release-version='${gpcopy_release_version}'  -g 'gpcopy-*.tar.gz' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='gpdb-data-copy' --release-version='${gpcopy_release_version}'  -g 'gpcopy-*.tar.gz' -d /home/gpadmin/gp_downloads
     tar xzvf /home/gpadmin/gp_downloads/gpcopy-*.tar.gz -C /home/gpadmin
     cp /home/gpadmin/gpcopy-*/gpcopy* /usr/local/greenplum-db/bin/
     chmod 755 /usr/local/greenplum-db/bin/gpcopy*

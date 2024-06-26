@@ -81,8 +81,8 @@ runcmd:
     chmod +x /usr/local/bin/pivnet
     pivnet login --api-token='${pivnet_api_token}'
     mkdir /home/gpadmin/gp_downloads/
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
-    pivnet download-product-files --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
 
@@ -106,6 +106,7 @@ runcmd:
     cat <<EOF > /usr/local/greenplum-db/etc/environment.d/20-proxy.conf
     export http_proxy=http://mdw:3128
     export https_proxy=http://mdw:3128
+    export no_proxy=localhost,127.0.0.1
     EOF
 
     chown -R gpadmin:gpadmin /usr/local/greenplum-db*
