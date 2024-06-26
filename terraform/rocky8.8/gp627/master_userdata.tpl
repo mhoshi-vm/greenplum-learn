@@ -177,9 +177,9 @@ runcmd:
     chmod +x /usr/local/bin/pivnet
     pivnet login --api-token='${pivnet_api_token}' 
     mkdir /home/gpadmin/gp_downloads/
-    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
-    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
-    pivnet download-product-files --accept-eula --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*-el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-rhel8-x86_64.rpm' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp6-*el8*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*-rhel8-*' -d /home/gpadmin/gp_downloads
 
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
@@ -198,10 +198,10 @@ runcmd:
       yum -y install java-11-openjdk.x86_64
 
       rpm -Uvh /home/gpadmin/gp_downloads/pxf*
-      echo 'export PATH=$PATH:/usr/local/pxf-gp7/bin' >> /home/gpadmin/.bashrc
+      echo 'export PATH=$PATH:/usr/local/pxf-gp6/bin' >> /home/gpadmin/.bashrc
       echo 'export JAVA_HOME=/usr/lib/jvm/jre'  >> /home/gpadmin/.bashrc
-      echo 'export PXF_BASE=/usr/local/pxf-gp7'  >> /home/gpadmin/.bashrc
-      chown -R gpadmin:gpadmin /usr/local/pxf-gp7
+      echo 'export PXF_BASE=/usr/local/pxf-gp6'  >> /home/gpadmin/.bashrc
+      chown -R gpadmin:gpadmin /usr/local/pxf-gp6
     fi
 
     echo 'export COORDINATOR_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
@@ -213,27 +213,6 @@ runcmd:
     chown -R gpadmin:gpadmin /usr/local/greenplum-db*
     chgrp -R gpadmin /usr/local/greenplum-db*
 
-    # Enable postgresml
-    pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'DataSciencePython*el8_x86_64.gppkg' -d /home/gpadmin/gp_downloads
-    su - gpadmin <<EOF
-      set -x
-      source /usr/local/greenplum-db/greenplum_path.sh
-      gppkg install -a gp_downloads/DataSciencePython*-el8_x86_64.gppkg
-      gpconfig -c shared_preload_libraries -v 'pgml'
-      gpstop -r -a
-    EOF
-
-    su - gpadmin <<EOF
-      set -x
-      source /usr/local/greenplum-db/greenplum_path.sh
-      export DSP_DIR=`ls -d /usr/local/greenplum-db/ext/DataSciencePython*`
-      export DSP_LIB_DIR=`ls -d $DSP_DIR/lib/python*/site-packages`
-      export DSP_LIB64_DIR=`ls -d $DSP_DIR/lib64/python*/site-packages`
-      gpconfig -c pgml.venv -v "'$DSP_DIR'"
-      gpconfig -c plpython3.python_path -v "'$DSP_LIB_DIR:$DSP_LIB64_DIR'" --skipvalidation
-      gpstop -u
-    EOF
-
     # Enable GPCC
     mkdir -p /usr/local/greenplum-cc-${gpcc_release_version}
     chown -R gpadmin:gpadmin /usr/local/greenplum-cc-${gpcc_release_version}
@@ -243,9 +222,9 @@ runcmd:
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
-      gpconfig -c shared_preload_libraries -v 'pgml,metrics_collector'
+      gpconfig -c shared_preload_libraries -v 'metrics_collector'
       unzip /home/gpadmin/gp_downloads/greenplum-cc-web-*.zip -d /home/gpadmin/
-      cd greenplum-cc-web-${gpcc_release_version}-gp7-el8-x86_64
+      cd greenplum-cc-web-${gpcc_release_version}-gp6-rhel8-x86_64
       gpstop -r -a
       ./gpccinstall-${gpcc_release_version} -c /home/gpadmin/gpcc_config
     EOF
@@ -255,7 +234,7 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       source /usr/local/greenplum-cc/gpcc_path.sh
       cd /usr/local/greenplum-cc/gppkg
-      gppkg install -a --force MetricsCollector-${gpcc_release_version}_gp_7.1.0-rocky8-x86_64.gppkg
+      gppkg -i -a --force MetricsCollector-${gpcc_release_version}_gp_${gp_release_version}-rocky8-x86_64.gppkg
       gpcc start
     EOF
 
