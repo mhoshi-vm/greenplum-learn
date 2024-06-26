@@ -25,7 +25,7 @@ write_files:
     # Mirrorless GUCs
     wal_level=minimal
     max_wal_senders=0
-    wal_keep_size=0
+    wal_keep_segments=0
     max_replication_slots=0
     gp_dispatch_keepalives_idle=20
     gp_dispatch_keepalives_interval=20
@@ -204,7 +204,7 @@ runcmd:
       chown -R gpadmin:gpadmin /usr/local/pxf-gp6
     fi
 
-    echo 'export COORDINATOR_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
+    echo 'export MASTER_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
     echo 'export PGDATABASE=template1' >> /home/gpadmin/.bashrc
     echo 'export GPHOME=/usr/local/greenplum-db' >> /home/gpadmin/.bashrc
     echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
@@ -234,7 +234,8 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       source /usr/local/greenplum-cc/gpcc_path.sh
       cd /usr/local/greenplum-cc/gppkg
-      gppkg -i -a --force MetricsCollector-${gpcc_release_version}_gp_${gp_release_version}-rocky8-x86_64.gppkg
+      FILE=`ls *rhel8* | tail -1`
+      gppkg -i $FILE
       gpcc start
     EOF
 

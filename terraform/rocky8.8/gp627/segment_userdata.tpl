@@ -81,7 +81,7 @@ runcmd:
     chmod +x /usr/local/bin/pivnet
     pivnet login --api-token='${pivnet_api_token}'
     mkdir /home/gpadmin/gp_downloads/
-    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-rhel8-*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp6-*el8*' -d /home/gpadmin/gp_downloads
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm

@@ -255,7 +255,8 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       source /usr/local/greenplum-cc/gpcc_path.sh
       cd /usr/local/greenplum-cc/gppkg
-      gppkg install -a --force MetricsCollector-${gpcc_release_version}_gp_7.1.0-rocky8-x86_64.gppkg
+      FILE=`ls *rocky8* | tail -1`
+      gppkg install -a --force $FILE
       gpcc start
     EOF
 
