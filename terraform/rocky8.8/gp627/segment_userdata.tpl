@@ -62,7 +62,7 @@ runcmd:
 
     /root/update-etc-hosts.sh ${internal_cidr} ${seg_count} ${offset}
 
-    sleep 60
+    sleep 120
     echo "proxy=http://mdw:3128" >> /etc/yum.conf
     yum update -y
 
@@ -97,7 +97,7 @@ runcmd:
       chown -R gpadmin:gpadmin /usr/local/pxf-gp6
     fi
 
-    echo 'export COORDINATOR_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
+    echo 'export MASTER_DATA_DIRECTORY=/gpdata/master/gpseg-1' >> /home/gpadmin/.bashrc
     echo 'export GPHOME=/usr/local/greenplum-db' >> /home/gpadmin/.bashrc
     echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
     echo 'export LD_LIBRARY_PATH=$GPHOME/lib' >> /home/gpadmin/.bashrc

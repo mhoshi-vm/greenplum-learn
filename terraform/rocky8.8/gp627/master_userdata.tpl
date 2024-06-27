@@ -184,7 +184,7 @@ runcmd:
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
 
-    sleep 60
+    sleep 120
 
     su - gpadmin <<EOF
       set -x
@@ -234,8 +234,8 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       source /usr/local/greenplum-cc/gpcc_path.sh
       cd /usr/local/greenplum-cc/gppkg
-      FILE=`ls *rhel8* | tail -1`
-      gppkg -i $FILE
+      FILE=\`ls *rhel8* | tail -1\`
+      gppkg -i \$FILE
       gpcc start
     EOF
 

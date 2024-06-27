@@ -226,11 +226,11 @@ runcmd:
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
-      export DSP_DIR=`ls -d /usr/local/greenplum-db/ext/DataSciencePython*`
-      export DSP_LIB_DIR=`ls -d $DSP_DIR/lib/python*/site-packages`
-      export DSP_LIB64_DIR=`ls -d $DSP_DIR/lib64/python*/site-packages`
-      gpconfig -c pgml.venv -v "'$DSP_DIR'"
-      gpconfig -c plpython3.python_path -v "'$DSP_LIB_DIR:$DSP_LIB64_DIR'" --skipvalidation
+      export DSP_DIR=\`ls -d /usr/local/greenplum-db/ext/DataSciencePython*\`
+      export DSP_LIB_DIR=\`ls -d $DSP_DIR/lib/python*/site-packages\`
+      export DSP_LIB64_DIR=\`ls -d $DSP_DIR/lib64/python*/site-packages\`
+      gpconfig -c pgml.venv -v \"'\$DSP_DIR'\"
+      gpconfig -c plpython3.python_path -v \"'\$DSP_LIB_DIR:\$DSP_LIB64_DIR'\" --skipvalidation
       gpstop -u
     EOF
 
@@ -255,8 +255,8 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       source /usr/local/greenplum-cc/gpcc_path.sh
       cd /usr/local/greenplum-cc/gppkg
-      FILE=`ls *rocky8* | tail -1`
-      gppkg install -a --force $FILE
+      FILE=\`ls *rocky8* | tail -1\`
+      gppkg install -a --force \$FILE
       gpcc start
     EOF
 
