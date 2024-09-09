@@ -14,21 +14,18 @@ variable "vsphere_server" {
   description = "Enter the address of the vCenter, either as an FQDN (preferred) or an IP address"
 }
 variable "vsphere_datacenter" {
-  default = "vc01"
+  default = "dc"
 }
 variable "vsphere_compute_cluster" {
-  default = "vc01cl01"
+  default = "vc"
 }
 variable "vsphere_datastore" {
-  default = "vsanDatastore"
+  default = "ds"
 }
-variable "vsphere_storage_policy" {
-  description = "Enter the custom name for your storage policy defined during Setting Up VMware vSphere Storage/Encryption"
-  default = "vc01cl01-t0compute"
-}
+
 variable "base_vm_name" {
   description = "Base VM with vmware-tools and Greenplum installed"
-  default = "greenplum7-db-base-vm-rocky88"
+  default = "greenplum-db-template-rocky8"
 }
 variable "resource_pool_name" {
   description= "The name of a dedicated resource pool for Greenplum VMs which will be created by Terraform"
@@ -50,7 +47,7 @@ variable "gp_virtual_etl_bar_network" {
 # gp-virtual-external network settings
 variable "gp_virtual_external_ipv4_addresses" {
   type = list(string)
-  description = "The routable IP addresses for mdw and smdw, in that order (skip smdw IP address for mirroless deployment)"
+  description = "The routable IP addresses for cdw and scdw, in that order (skip scdw IP address for mirroless deployment)"
   default = ["192.168.100.30" , "192.168.100.130", "192.168.100.230"]
 }
 variable "gp_virtual_external_ipv4_netmask" {
@@ -64,8 +61,15 @@ variable "gp_virtual_external_gateway" {
 variable "dns_servers" {
   type = list(string)
   description = "The DNS servers for the routable network, e.g. 8.8.8.8"
-  default = ["10.79.2.5", "10.79.2.6"]
+  default = ["8.8.8.8", "8.8.4.4"]
 }
+
+variable "gp_virtual_internal_ipv4_cidr" {
+  type = string
+  description = "The leading octets for the data backup (doesn't have to be routable) network IP range, e.g. '192.168.2.0/24' or '172.17.0.0/21'"
+  default = "192.168.101.0/24"
+}
+
 # gp-virtual-etl-bar network settings
 variable "gp_virtual_etl_bar_ipv4_cidr" {
   type = string
@@ -73,14 +77,39 @@ variable "gp_virtual_etl_bar_ipv4_cidr" {
   default = "192.168.102.0/24"
 }
 
-variable "master_offset" {
+variable "coordinator_offset" {
   type = string
   default = 230
+}
+
+variable "deployment_type" {
+  type = string
+  default = "mirrorless"
+}
+
+variable "primary_segment_count" {
+  type = string
+  default = 2
 }
 
 variable "segment_offset" {
   type = string
   default = 170
+}
+
+variable "root_disk_size_in_gb" {
+  type = string
+  default = 50
+}
+
+variable "data_disk_size_in_gb" {
+  type = string
+  default = 32
+}
+
+variable "is_thin_provision" {
+  type = bool
+  default = true
 }
 
 
@@ -128,10 +157,6 @@ data "vsphere_compute_cluster" "compute_cluster" {
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
-data "vsphere_storage_policy" "policy" {
-  name = var.vsphere_storage_policy
-}
-
 # this points at the template created by the image folder
 data "vsphere_virtual_machine" "template" {
   name          = var.base_vm_name
@@ -139,23 +164,37 @@ data "vsphere_virtual_machine" "template" {
 }
 
 locals {
-  gp_virtual_internal_ip_cidr = "${data.vsphere_virtual_machine.template.vapp[0].properties["guestinfo.internal_ip_cidr"]}"
-  deployment_type = contains(keys(data.vsphere_virtual_machine.template.vapp[0].properties), "guestinfo.deployment_type") ? "${data.vsphere_virtual_machine.template.vapp[0].properties["guestinfo.deployment_type"]}" : "mirrored"
-  primary_segment_count = "${data.vsphere_virtual_machine.template.vapp[0].properties["guestinfo.primary_segment_count"]}"
+  gp_virtual_internal_ip_cidr = var.gp_virtual_internal_ipv4_cidr
+  deployment_type = var.deployment_type
+  primary_segment_count = var.primary_segment_count
   segment_count = local.deployment_type == "mirrored" ? local.primary_segment_count * 2: local.primary_segment_count
   memory = data.vsphere_virtual_machine.template.memory
   memory_reservation = data.vsphere_virtual_machine.template.memory / 2
   num_cpus = data.vsphere_virtual_machine.template.num_cpus
-  root_disk_size_in_gb = data.vsphere_virtual_machine.template.disks[0].size
-  data_disk_size_in_gb = data.vsphere_virtual_machine.template.disks[1].size
+  root_disk_size_in_gb = var.root_disk_size_in_gb
+  data_disk_size_in_gb = var.data_disk_size_in_gb
+  is_thin_provision = var.is_thin_provision
   segment_gp_virtual_internal_ipv4_offset = var.segment_offset
   segment_gp_virtual_etl_bar_ipv4_offset = var.segment_offset
   gp_virtual_internal_ipv4_netmask = parseint(regex("/(\\d+)$", local.gp_virtual_internal_ip_cidr)[0], 10)
-  master_internal_ip = cidrhost(local.gp_virtual_internal_ip_cidr, var.master_offset) 
-  standby_internal_ip = cidrhost(local.gp_virtual_internal_ip_cidr, var.master_offset +1)
+  coordinator_internal_ip = cidrhost(local.gp_virtual_internal_ip_cidr, var.coordinator_offset) 
+  standby_internal_ip = cidrhost(local.gp_virtual_internal_ip_cidr, var.coordinator_offset +1)
   gp_virtual_etl_bar_ipv4_netmask = parseint(regex("/(\\d+)$", var.gp_virtual_etl_bar_ipv4_cidr)[0], 10)
-  master_etl_bar_ip = cidrhost(var.gp_virtual_etl_bar_ipv4_cidr, var.master_offset)
-  standby_etl_bar_ip = cidrhost(var.gp_virtual_etl_bar_ipv4_cidr, var.master_offset +1)
+  coordinator_etl_bar_ip = cidrhost(var.gp_virtual_etl_bar_ipv4_cidr, var.coordinator_offset)
+  standby_etl_bar_ip = cidrhost(var.gp_virtual_etl_bar_ipv4_cidr, var.coordinator_offset +1)
+  userfile_vars = {
+    ssh_pub_key = tls_private_key.common_key.public_key_openssh
+    ssh_priv_key = tls_private_key.common_key.private_key_openssh
+    coordinator_offset = var.coordinator_offset
+    seg_count = local.segment_count
+    internal_cidr = local.gp_virtual_internal_ip_cidr
+    offset = local.segment_gp_virtual_internal_ipv4_offset
+    pivnet_api_token = var.pivnet_api_token
+    pivnet_url = var.pivnet_url
+    gp_release_version = var.gp_release_version
+    gpcc_release_version = var.gpcc_release_version
+    gpcopy_release_version = var.gpcopy_release_version
+  }
 }
 
 resource "vsphere_resource_pool" "pool" {
@@ -163,13 +202,13 @@ resource "vsphere_resource_pool" "pool" {
   parent_resource_pool_id = data.vsphere_compute_cluster.compute_cluster.resource_pool_id
 }
 
-resource "vsphere_compute_cluster_vm_anti_affinity_rule" "master_vm_anti_affinity_rule" {
+resource "vsphere_compute_cluster_vm_anti_affinity_rule" "coordinator_vm_anti_affinity_rule" {
     count               = local.deployment_type == "mirrored" ? 1 : 0
     enabled             = true
     mandatory           = true
     compute_cluster_id  = data.vsphere_compute_cluster.compute_cluster.id
-    name                = format("%s-master-vm-anti-affinity-rule", var.prefix)
-    virtual_machine_ids = toset(vsphere_virtual_machine.master_hosts.*.id)
+    name                = format("%s-coordinator-vm-anti-affinity-rule", var.prefix)
+    virtual_machine_ids = toset(vsphere_virtual_machine.coordinator_hosts.*.id)
 }
 
 resource "vsphere_compute_cluster_vm_anti_affinity_rule" "segment_vm_anti_affinity_rule" {
@@ -183,3 +222,9 @@ resource "vsphere_compute_cluster_vm_anti_affinity_rule" "segment_vm_anti_affini
         element(vsphere_virtual_machine.segment_hosts.*.id, count.index*2+1),
     ]
 }
+
+resource "tls_private_key" "common_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+

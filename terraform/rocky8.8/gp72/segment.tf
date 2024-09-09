@@ -1,13 +1,16 @@
-locals {
-  segment_userfile_vars = {
-    master_offset = var.master_offset
-    seg_count = local.segment_count
-    internal_cidr = local.gp_virtual_internal_ip_cidr
-    offset = local.segment_gp_virtual_internal_ipv4_offset
-    pivnet_api_token = var.pivnet_api_token
-    pivnet_url = var.pivnet_url
-    gp_release_version = var.gp_release_version
-    gpcc_release_version = var.gpcc_release_version
+data "template_cloudinit_config" "segment_config" {
+  gzip          = false
+  base64_encode = true
+
+  # Main cloud-config configuration file.
+  part {
+    content_type = "text/cloud-config"
+    content      = templatefile("common_userdata.tpl", local.userfile_vars)
+  }
+
+  part {
+    content_type = "text/cloud-config"
+    content      = templatefile("segment_userdata.tpl", local.userfile_vars)
   }
 }
 
@@ -20,7 +23,6 @@ resource "vsphere_virtual_machine" "segment_hosts" {
   guest_id = data.vsphere_virtual_machine.template.guest_id
   firmware = data.vsphere_virtual_machine.template.firmware
   datastore_id = data.vsphere_datastore.datastore.id
-  storage_policy_id = data.vsphere_storage_policy.policy.id
   scsi_controller_count = 2
 
   memory = local.memory
@@ -44,9 +46,8 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     size  = local.root_disk_size_in_gb
     unit_number = 0
     eagerly_scrub = true
-    thin_provisioned = false
+    thin_provisioned = local.is_thin_provision
     datastore_id = data.vsphere_datastore.datastore.id
-    storage_policy_id = data.vsphere_storage_policy.policy.id
   }
 
   disk {
@@ -54,9 +55,8 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     size  = local.data_disk_size_in_gb
     unit_number = 1
     eagerly_scrub = true
-    thin_provisioned = false
+    thin_provisioned = local.is_thin_provision
     datastore_id = data.vsphere_datastore.datastore.id
-    storage_policy_id = data.vsphere_storage_policy.policy.id
   }
 
   clone {
@@ -83,6 +83,6 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     }
   }
   vapp {
-    properties = merge(data.vsphere_virtual_machine.template.vapp[0].properties ,{ "user-data" = base64encode(templatefile("segment_userdata.tpl",local.segment_userfile_vars)) })
+    properties = { "user-data" = data.template_cloudinit_config.segment_config.rendered }
   }
 }

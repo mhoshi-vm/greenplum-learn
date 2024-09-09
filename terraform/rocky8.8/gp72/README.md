@@ -1,4 +1,12 @@
-# Prepare centos7 template
+# Prepare rocky8 template
+
+install with defaults. execute following.
+
+```
+grubby --update-kernel=ALL --args="transparent_hugepage=never"
+grubby --update-kernel=ALL --args="elevator=deadline"
+yum install python3
+```
 
 ## Install cloud-init from source
 
@@ -70,7 +78,6 @@ cloud_init_modules:
  - migrator
  - seed_random
  - bootcmd
- - write_files
  - growpart
  - resizefs
  - disk_setup
@@ -81,6 +88,7 @@ cloud_init_modules:
  - ca_certs
  - rsyslog
  - users_groups
+ - write_files
 
 # The modules that run in the 'config' stage
 cloud_config_modules:
@@ -137,6 +145,11 @@ system_info:
    network:
       renderers: ['sysconfig', 'eni', 'netplan', 'network-manager', 'networkd' ]
 ```
+
+```
+cloud-init clean
+```
+
 
 # Apply terraform
 ```
