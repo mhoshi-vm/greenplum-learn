@@ -105,14 +105,15 @@ runcmd:
   - |
     set -x
     export HOME=/root
-    yum update -y
 
     # Install SQUID as making the cdw node the proxy server
     dnf install epel-release -y
     dnf install squid -y
     systemctl start squid.service
 
-    yum install wget -y
+    mkdir -p /tmp/complete
+    chmod 777 /tmp/complete
+    yum update -y
 
     wget -O /usr/local/bin/pivnet ${pivnet_url}
     chmod +x /usr/local/bin/pivnet
@@ -125,7 +126,13 @@ runcmd:
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
 
-    sleep 60
+    until [[ `find /tmp/complete -type f | wc -l` -eq ${seg_count} ]]
+    do
+      echo "waiting for segment node"
+      sleep 10
+    done
+
+    rm -rf /tmp/complete
 
     su - gpadmin <<EOF
       set -x

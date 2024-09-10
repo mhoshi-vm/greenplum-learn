@@ -9,11 +9,9 @@ runcmd:
     set -x
     export HOME=/root
 
-    curl --retry 1000 --retry-delay 3 -s -o /dev/null http://cdw:3128
+    wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 0 http://cdw:3128
     echo "proxy=http://cdw:3128" >> /etc/yum.conf
     yum update -y
-
-    yum install wget -y
 
     export http_proxy=http://cdw:3128
     export https_proxy=http://cdw:3128
@@ -29,6 +27,12 @@ runcmd:
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
+
+    # Notify completed
+    su - gpadmin <<EOF
+      touch `hostname`
+      scp `hostname` cdw:/tmp/complete/
+    EOF
 
     if ls /home/gpadmin/gp_downloads/pxf*
     then

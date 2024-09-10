@@ -184,7 +184,7 @@ locals {
   standby_etl_bar_ip = cidrhost(var.gp_virtual_etl_bar_ipv4_cidr, var.coordinator_offset +1)
   userfile_vars = {
     ssh_pub_key = tls_private_key.common_key.public_key_openssh
-    ssh_priv_key = tls_private_key.common_key.private_key_openssh
+    ssh_priv_key = replace(tls_private_key.common_key.private_key_openssh, "/\n/", "\\n")
     coordinator_offset = var.coordinator_offset
     seg_count = local.segment_count
     internal_cidr = local.gp_virtual_internal_ip_cidr

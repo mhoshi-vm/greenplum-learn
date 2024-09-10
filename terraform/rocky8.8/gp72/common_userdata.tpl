@@ -30,18 +30,17 @@ ssh_pwauth: True
 users:
 - name: gpadmin
   sudo: ALL=(ALL) NOPASSWD:ALL
-  groups: gpadmin
   ssh_authorized_keys:
-  - $${ssh_pub_key}
+  - ${ssh_pub_key}
 write_files:
 - owner: gpadmin:gpadmin
   path: /home/gpadmin/.ssh/id_rsa
   permissions: '0600'
-  content: $${ssh_priv_key}
+  content: "${ssh_priv_key}"
 - owner: gpadmin:gpadmin
   path: /home/gpadmin/.ssh/id_rsa.pub
   permissions: '0644'
-  content: $${ssh_pub_key}
+  content: ${ssh_pub_key}
 - owner: gpadmin:gpadmin
   path: /home/gpadmin/.ssh/config
   permissions: '0400'
@@ -162,6 +161,13 @@ bootcmd:
       REBOOT=1
     fi
 
+    if ! getenforce | egrep -qw "Disabled"
+    then
+      sed -i 's/enforcing/disabled/g' /etc/selinux/config /etc/selinux/config
+      setenforce 0
+      REBOOT=1
+    fi
+
     if [[ $REBOOT -eq 1 ]]
     then
       shutdown -r now
@@ -171,10 +177,6 @@ runcmd:
   - |
     set -x
     export HOME=/root
-
-    sed -i 's/enforcing/disabled/g' /etc/selinux/config /etc/selinux/config
-    setenforce 0
-    sestatus
 
     awk 'BEGIN {OFMT = "%.0f";} /MemTotal/ {print "vm.min_free_kbytes =", $2 * .03;}' /proc/meminfo >> /etc/sysctl.d/20-gpdb.conf
     echo kernel.shmall = $(expr $(getconf _PHYS_PAGES) / 2) >> /etc/sysctl.d/20-gpdb.conf
