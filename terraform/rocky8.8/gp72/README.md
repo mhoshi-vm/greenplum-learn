@@ -1,11 +1,14 @@
 # Prepare rocky8 template
 
+Install VMware Tools
+
 install with defaults. execute following.
 
 ```
 grubby --update-kernel=ALL --args="transparent_hugepage=never"
 grubby --update-kernel=ALL --args="elevator=deadline"
-yum install python3
+yum install python3 git -y
+yum update -y
 ```
 
 ## Install cloud-init from source
@@ -150,6 +153,9 @@ system_info:
 cloud-init clean
 ```
 
+# Enable vApp Config
+
+![img.png](img.png)
 
 # Apply terraform
 ```

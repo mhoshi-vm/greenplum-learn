@@ -1,26 +1,25 @@
 #cloud-config
+merge_how:
+ - name: list
+   settings: [append]
+ - name: dict
+   settings: [no_replace, recurse_list]
 runcmd:
   - |
     set -x
     export HOME=/root
 
-    sleep 60
+    curl --retry 1000 --retry-delay 3 -s -o /dev/null http://cdw:3128
     echo "proxy=http://cdw:3128" >> /etc/yum.conf
     yum update -y
+
+    yum install wget -y
 
     export http_proxy=http://cdw:3128
     export https_proxy=http://cdw:3128
 
     echo "server cdw prefer" >> /etc/chrony.conf
     systemctl restart chronyd
-
-    echo mdw > /home/gpadmin/hosts-all
-    > /home/gpadmin/hosts-segments
-    for i in {1..${seg_count}}; do
-      echo "sdw$${i}" >> /home/gpadmin/hosts-all
-      echo "sdw$${i}" >> /home/gpadmin/hosts-segments
-    done
-    chown gpadmin:gpadmin /home/gpadmin/hosts*
 
     wget -O /usr/local/bin/pivnet ${pivnet_url}
     chmod +x /usr/local/bin/pivnet
@@ -49,8 +48,8 @@ runcmd:
 
     mkdir -p /usr/local/greenplum-db/etc/environment.d/
     cat <<EOF > /usr/local/greenplum-db/etc/environment.d/20-proxy.conf
-    export http_proxy=http://mdw:3128
-    export https_proxy=http://mdw:3128
+    export http_proxy=http://cdw:3128
+    export https_proxy=http://cdw:3128
     export no_proxy=localhost,127.0.0.1
     EOF
 

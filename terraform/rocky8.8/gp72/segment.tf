@@ -1,4 +1,4 @@
-data "template_cloudinit_config" "segment_config" {
+data "cloudinit_config" "segment_config" {
   gzip          = false
   base64_encode = true
 
@@ -45,7 +45,7 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     label = "disk0"
     size  = local.root_disk_size_in_gb
     unit_number = 0
-    eagerly_scrub = true
+    eagerly_scrub = local.is_thin_provision ? false : true
     thin_provisioned = local.is_thin_provision
     datastore_id = data.vsphere_datastore.datastore.id
   }
@@ -54,7 +54,7 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     label = "disk1"
     size  = local.data_disk_size_in_gb
     unit_number = 1
-    eagerly_scrub = true
+    eagerly_scrub = local.is_thin_provision ? false : true
     thin_provisioned = local.is_thin_provision
     datastore_id = data.vsphere_datastore.datastore.id
   }
@@ -83,6 +83,6 @@ resource "vsphere_virtual_machine" "segment_hosts" {
     }
   }
   vapp {
-    properties = { "user-data" = data.template_cloudinit_config.segment_config.rendered }
+    properties = { "user-data" = data.cloudinit_config.segment_config.rendered }
   }
 }

@@ -1,5 +1,9 @@
 #cloud-config
-
+merge_how:
+ - name: list
+   settings: [append]
+ - name: dict
+   settings: [no_replace, recurse_list]
 # https://networkbrouhaha.com/2022/03/cloud-init-vcd/
 write_files:
 - owner: gpadmin:gpadmin
@@ -107,6 +111,8 @@ runcmd:
     dnf install epel-release -y
     dnf install squid -y
     systemctl start squid.service
+
+    yum install wget -y
 
     wget -O /usr/local/bin/pivnet ${pivnet_url}
     chmod +x /usr/local/bin/pivnet

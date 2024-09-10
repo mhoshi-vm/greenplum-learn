@@ -1,12 +1,32 @@
 #cloud-config
+merge_how:
+ - name: list
+   settings: [append]
+ - name: dict
+   settings: [no_replace, recurse_list]
+cloud_init_modules:
+ - migrator
+ - seed_random
+ - bootcmd
+ - growpart
+ - resizefs
+ - disk_setup
+ - mounts
+ - set_hostname
+ - update_hostname
+ - update_etc_hosts
+ - ca_certs
+ - rsyslog
+ - users_groups
+ - write_files
+disable_root: false
 chpasswd:
   users:
   - name: gpadmin
     type: text
+    password: '!QAZxsw2#EDC'
   expire: False
 ssh_pwauth: True
-groups:
-- gpadmin
 users:
 - name: gpadmin
   sudo: ALL=(ALL) NOPASSWD:ALL
@@ -124,6 +144,29 @@ write_files:
       printf "$${segment_internal_ip}\t$${hostname}\n" >> /etc/hosts
       let i=i+1
     done
+bootcmd:
+  - |
+    set -x
+    export HOME=/root
+    export REBOOT=0
+
+    if ! grubby --info=0 | egrep -qw "elevator=deadline"
+    then
+      grubby --update-kernel=ALL --args="elevator=deadline"
+      REBOOT=1
+    fi
+
+    if ! grubby --info=0 | egrep -qw "transparent_hugepage=never"
+    then
+      grubby --update-kernel=ALL --args="transparent_hugepage=never"
+      REBOOT=1
+    fi
+
+    if [[ $REBOOT -eq 1 ]]
+    then
+      shutdown -r now
+    fi
+
 runcmd:
   - |
     set -x

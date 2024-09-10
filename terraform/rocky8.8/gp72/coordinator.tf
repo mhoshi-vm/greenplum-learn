@@ -1,4 +1,4 @@
-data "template_cloudinit_config" "coordinator_config" {
+data "cloudinit_config" "coordinator_config" {
   gzip          = false
   base64_encode = true
 
@@ -16,7 +16,7 @@ data "template_cloudinit_config" "coordinator_config" {
 
 resource "vsphere_virtual_machine" "coordinator_hosts" {
   count = local.deployment_type == "mirrored" ? 2 : 1
-  name = count.index == 0 ? format("%s-mdw", var.prefix) : count.index == 1 ? format("%s-scdw", var.prefix) : format("%s-scdw-%d", var.prefix, count.index)
+  name = count.index == 0 ? format("%s-cdw", var.prefix) : count.index == 1 ? format("%s-scdw", var.prefix) : format("%s-scdw-%d", var.prefix, count.index)
   resource_pool_id = vsphere_resource_pool.pool.id
   wait_for_guest_net_routable = false
   wait_for_guest_net_timeout = 0
@@ -49,7 +49,7 @@ resource "vsphere_virtual_machine" "coordinator_hosts" {
     label = "disk0"
     size  = local.root_disk_size_in_gb
     unit_number = 0
-    eagerly_scrub = true
+    eagerly_scrub = local.is_thin_provision ? false : true
     thin_provisioned = local.is_thin_provision
     datastore_id = data.vsphere_datastore.datastore.id
   }
@@ -58,7 +58,7 @@ resource "vsphere_virtual_machine" "coordinator_hosts" {
     label = "disk1"
     size  = local.data_disk_size_in_gb
     unit_number = 1
-    eagerly_scrub = true
+    eagerly_scrub = local.is_thin_provision ? false : true
     thin_provisioned = local.is_thin_provision
     datastore_id = data.vsphere_datastore.datastore.id
   }
@@ -94,7 +94,9 @@ resource "vsphere_virtual_machine" "coordinator_hosts" {
   }
 
   vapp {
-    properties = { "user-data" = data.template_cloudinit_config.coordinator_config.rendered }
+
+    properties = {
+      "user-data" = data.cloudinit_config.coordinator_config.rendered }
   }
 
 }
