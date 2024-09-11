@@ -1,11 +1,9 @@
 # Prepare rocky8 template
 
-Install VMware Tools
-
-install with defaults. execute following.
+Install with defaults. execute following.
 
 ```
-yum install perl open-vm-tools cloud-init cloud-utils-growpart -y
+yum install perl open-vm-tools cloud-init cloud-utils-growpart wget -y
 yum update -y
 
 cat <<EOF > /etc/cloud/cloud.cfg.d/99-prep.cfg

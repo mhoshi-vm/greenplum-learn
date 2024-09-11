@@ -171,14 +171,15 @@ runcmd:
       gpstop -r -a
     EOF
 
+    export DSP_DIR=`ls -d /usr/local/greenplum-db/ext/DataSciencePython*`
+    export DSP_LIB_DIR=`ls -d $DSP_DIR/lib/python*/site-packages`
+    export DSP_LIB64_DIR=`ls -d $DSP_DIR/lib64/python*/site-packages`
+
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
-      export DSP_DIR=\`ls -d /usr/local/greenplum-db/ext/DataSciencePython*\`
-      export DSP_LIB_DIR=\`ls -d $DSP_DIR/lib/python*/site-packages\`
-      export DSP_LIB64_DIR=\`ls -d $DSP_DIR/lib64/python*/site-packages\`
-      gpconfig -c pgml.venv -v \"'\$DSP_DIR'\"
-      gpconfig -c plpython3.python_path -v \"'\$DSP_LIB_DIR:\$DSP_LIB64_DIR'\" --skipvalidation
+      gpconfig -c pgml.venv -v $${DSP_DIR}
+      gpconfig -c plpython3.python_path -v \'$${DSP_LIB_DIR}:$${DSP_LIB64_DIR}\'  --skipvalidation
       gpstop -u
     EOF
 
@@ -216,5 +217,6 @@ runcmd:
 
     su - gpadmin <<EOF
       set -x
+      source /usr/local/greenplum-db/greenplum_path.sh
       gpsync -f hosts-segments /usr/local/greenplum-db/bin/gpcopy_helper =:/usr/local/greenplum-db/bin
     EOF
