@@ -146,88 +146,6 @@ write_files:
       printf "$${segment_internal_ip}\t$${hostname}\n" >> /etc/hosts
       let i=i+1
     done
-- owner: root:root
-  path: /etc/gpv/gpdb-service
-  permissions: '0744'
-  content: |
-    #!/bin/bash
-
-    set -e
-    echo ==========================================================
-    echo [the begin timestamp is: $(date)]
-
-    if [ -d /gpdata/coordinator/gpseg* ]; then
-      POSTMASTER_FILE_PATH=$(ls -d /gpdata/coordinator/gpseg*)
-      printf -v PGCTL_OPTION ' -D %s -w -t 120 -o " %s " ' $${POSTMASTER_FILE_PATH} "-E"
-    elif [ -d /gpdata/primary/gpseg* ]; then
-      POSTMASTER_FILE_PATH=$(ls -d /gpdata/primary/gpseg*)
-      printf -v PGCTL_OPTION ' -D %s -w -t 120 ' $${POSTMASTER_FILE_PATH}
-    else
-      echo the current cluster might not be initialized by gpinitsystem
-      echo we cannot find /gpdata/master/gpseg* or /gpdata/primary/gpseg*
-      echo please double check the cluster is initialized
-      echo and then restart the gpdb.service again.
-      exit 1
-    fi
-
-    echo POSTMASTER_FILE_PATH is $${POSTMASTER_FILE_PATH}
-    echo PGCTL_OPTION is $${PGCTL_OPTION}
-
-    echo about to $1 ...
-
-    case "$1" in
-      start)
-        if [ ! -z "$(ps -ef | grep postgres | grep gpseg)" ]; then
-          echo there is an existing postmaster running by somebody else, stop it
-          /usr/local/greenplum-db/bin/pg_ctl -w -D $${POSTMASTER_FILE_PATH} --mode=fast stop
-        fi
-        echo clean-up left-over files if any
-        rm -f /tmp/.s.PGSQL.*
-        rm -f $${POSTMASTER_FILE_PATH}/postmaster.pid
-
-        echo starting new postmaster ...
-        eval /usr/local/greenplum-db/bin/pg_ctl $${PGCTL_OPTION} start
-        echo postmaster is started
-
-        echo extracting postmaster pid...
-        touch /home/gpadmin/.gpv.postmaster.pid
-        POSTMASTER_PID=$(head -1 $${POSTMASTER_FILE_PATH}/postmaster.pid)
-        echo $${POSTMASTER_PID} > /home/gpadmin/.gpv.postmaster.pid
-        echo $(date) >> /home/gpadmin/.gpv.postmaster.pid
-        echo remembered the postmaster pid as $${POSTMASTER_PID}
-        ;;
-      stop)
-        echo stopping postmaster with pid $(cat /home/gpadmin/.gpv.postmaster.pid) ...
-        /usr/local/greenplum-db/bin/pg_ctl -w -D $${POSTMASTER_FILE_PATH} --mode=fast stop
-        echo postmaster is stopped
-      ;;
-      *)
-        echo "Usage: $0 {start|stop}"
-      esac
-
-    echo [the end timestamp is: $(date)]
-    exit 0
-- owner: root:root
-  path: /etc/systemd/system/gpdb.service
-  permissions: '0644'
-  content: |
-    [Unit]
-    Description=Greenplum Service
-
-    [Service]
-    Type=forking
-    User=gpadmin
-    LimitNOFILE=524288
-    LimitNPROC=131072
-    ExecStart=/bin/bash -l -c "/etc/gpv/gpdb-service start 2>&1 | tee -a /var/log/gpv/gpdb-service.log"
-    ExecStop=/bin/bash -l -c "/etc/gpv/gpdb-service stop 2>&1 | tee -a /var/log/gpv/gpdb-service.log"
-    TimeoutStartSec=120
-    Restart=always
-    PIDFile=/home/gpadmin/.gpv.postmaster.pid
-    RestartSec=1s
-
-    [Install]
-    WantedBy=multi-user.target
 bootcmd:
   - |
     set -x
@@ -298,6 +216,3 @@ runcmd:
       echo "sdw$${i}" >> /home/gpadmin/hosts-segments
     done
     chown gpadmin:gpadmin /home/gpadmin/hosts*
-
-    mkdir -p /var/log/gpv
-    chmod a+rwx /var/log/gpv

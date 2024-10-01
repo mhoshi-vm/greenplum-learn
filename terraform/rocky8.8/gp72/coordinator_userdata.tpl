@@ -111,11 +111,13 @@ runcmd:
     pivnet login --api-token='${pivnet_api_token}' 
     mkdir /home/gpadmin/gp_downloads/
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-virtual-service-*el8*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp7-*el8*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*-el8-*' -d /home/gpadmin/gp_downloads
 
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
+    dnf install -y /home/gpadmin/gp_downloads/greenplum-virtual-service-*el8*
 
     until [[ `find /tmp/complete -type f | wc -l` -eq ${seg_count} ]]
     do
@@ -130,6 +132,16 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       bash create_gpinitsystem_config.sh ${seg_count}
       gpinitsystem -a -I gpinitsystem_config -p gp_guc_config
+    EOF
+
+    # Initializing the greenplum-postmaster Service
+    su - gpadmin <<EOF
+      set -x
+      source /usr/local/greenplum-db/greenplum_path.sh
+      gpssh -f hosts-all "sudo mkdir -p /var/log/gpv"
+      gpssh -f hosts-all "sudo chmod 777 /var/log/gpv"
+      /etc/gpv/postmaster-service-initialize
+      gpssh -f /home/gpadmin/hosts-all -e 'usermod -a -G systemd-journal gpadmin'
     EOF
 
     if ls /home/gpadmin/gp_downloads/pxf*
