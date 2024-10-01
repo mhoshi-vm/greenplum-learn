@@ -93,8 +93,8 @@ write_files:
   path: /root/update-etc-hosts.sh
   permissions: '0700'
   content: |
-    if [ $# -ne 3 ] ; then
-      echo "Usage: $0 internal_cidr segment_count offset"
+    if [ $# -ne 4 ] ; then
+      echo "Usage: $0 internal_cidr segment_count offset etl_bar_cdw_ip"
       exit 1
     fi
 
@@ -107,6 +107,7 @@ write_files:
     internal_ip_cidr=$${1}
     segment_host_count=$${2}
     offset=$${3}
+    etl_bar_cdw_ip=$${4}
 
     internal_network_ip=$(echo $${internal_ip_cidr} | cut -d"/" -f1)
     internal_netmask=$(echo $${internal_ip_cidr} | cut -d"/" -f2)
@@ -137,12 +138,96 @@ write_files:
     standby_ip="$${ip_prefix}.$${coordinator_octet3}.$${standby_offset}"
 
     printf "\n$${coordinator_ip}\tcdw\n$${standby_ip}\tscdw\n" >> /etc/hosts
+    printf "\n$${etl_bar_cdw_ip}\tcdw-etl\n" >> /etc/hosts
+
     i=$${offset}
     for hostname in $(seq -f "sdw%g" 1 $${segment_host_count}); do
       segment_internal_ip="$${ip_prefix}.$(( octet3_base + i / 256 )).$(( i % 256 ))"
       printf "$${segment_internal_ip}\t$${hostname}\n" >> /etc/hosts
       let i=i+1
     done
+- owner: root:root
+  path: /etc/gpv/gpdb-service
+  permissions: '0744'
+  content: |
+    #!/bin/bash
+
+    set -e
+    echo ==========================================================
+    echo [the begin timestamp is: $(date)]
+
+    if [ -d /gpdata/coordinator/gpseg* ]; then
+      POSTMASTER_FILE_PATH=$(ls -d /gpdata/coordinator/gpseg*)
+      printf -v PGCTL_OPTION ' -D %s -w -t 120 -o " %s " ' $${POSTMASTER_FILE_PATH} "-E"
+    elif [ -d /gpdata/primary/gpseg* ]; then
+      POSTMASTER_FILE_PATH=$(ls -d /gpdata/primary/gpseg*)
+      printf -v PGCTL_OPTION ' -D %s -w -t 120 ' $${POSTMASTER_FILE_PATH}
+    else
+      echo the current cluster might not be initialized by gpinitsystem
+      echo we cannot find /gpdata/master/gpseg* or /gpdata/primary/gpseg*
+      echo please double check the cluster is initialized
+      echo and then restart the gpdb.service again.
+      exit 1
+    fi
+
+    echo POSTMASTER_FILE_PATH is $${POSTMASTER_FILE_PATH}
+    echo PGCTL_OPTION is $${PGCTL_OPTION}
+
+    echo about to $1 ...
+
+    case "$1" in
+      start)
+        if [ ! -z "$(ps -ef | grep postgres | grep gpseg)" ]; then
+          echo there is an existing postmaster running by somebody else, stop it
+          /usr/local/greenplum-db/bin/pg_ctl -w -D $${POSTMASTER_FILE_PATH} --mode=fast stop
+        fi
+        echo clean-up left-over files if any
+        rm -f /tmp/.s.PGSQL.*
+        rm -f $${POSTMASTER_FILE_PATH}/postmaster.pid
+
+        echo starting new postmaster ...
+        eval /usr/local/greenplum-db/bin/pg_ctl $${PGCTL_OPTION} start
+        echo postmaster is started
+
+        echo extracting postmaster pid...
+        touch /home/gpadmin/.gpv.postmaster.pid
+        POSTMASTER_PID=$(head -1 $${POSTMASTER_FILE_PATH}/postmaster.pid)
+        echo $${POSTMASTER_PID} > /home/gpadmin/.gpv.postmaster.pid
+        echo $(date) >> /home/gpadmin/.gpv.postmaster.pid
+        echo remembered the postmaster pid as $${POSTMASTER_PID}
+        ;;
+      stop)
+        echo stopping postmaster with pid $(cat /home/gpadmin/.gpv.postmaster.pid) ...
+        /usr/local/greenplum-db/bin/pg_ctl -w -D $${POSTMASTER_FILE_PATH} --mode=fast stop
+        echo postmaster is stopped
+      ;;
+      *)
+        echo "Usage: $0 {start|stop}"
+      esac
+
+    echo [the end timestamp is: $(date)]
+    exit 0
+- owner: root:root
+  path: /etc/systemd/system/gpdb.service
+  permissions: '0644'
+  content: |
+    [Unit]
+    Description=Greenplum Service
+
+    [Service]
+    Type=forking
+    User=gpadmin
+    LimitNOFILE=524288
+    LimitNPROC=131072
+    ExecStart=/bin/bash -l -c "/etc/gpv/gpdb-service start 2>&1 | tee -a /var/log/gpv/gpdb-service.log"
+    ExecStop=/bin/bash -l -c "/etc/gpv/gpdb-service stop 2>&1 | tee -a /var/log/gpv/gpdb-service.log"
+    TimeoutStartSec=120
+    Restart=always
+    PIDFile=/home/gpadmin/.gpv.postmaster.pid
+    RestartSec=1s
+
+    [Install]
+    WantedBy=multi-user.target
 bootcmd:
   - |
     set -x
@@ -204,7 +289,7 @@ runcmd:
     printf "MaxStartups 200\nMaxSessions 200\n" >> /etc/ssh/sshd_config
     service sshd restart
 
-    /root/update-etc-hosts.sh ${internal_cidr} ${seg_count} ${offset}
+    /root/update-etc-hosts.sh ${internal_cidr} ${seg_count} ${offset} ${etl_bar_cdw_ip}
 
     echo cdw > /home/gpadmin/hosts-all
     > /home/gpadmin/hosts-segments
@@ -213,3 +298,6 @@ runcmd:
       echo "sdw$${i}" >> /home/gpadmin/hosts-segments
     done
     chown gpadmin:gpadmin /home/gpadmin/hosts*
+
+    mkdir -p /var/log/gpv
+    chmod a+rwx /var/log/gpv

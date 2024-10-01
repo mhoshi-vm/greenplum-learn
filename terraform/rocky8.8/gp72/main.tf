@@ -189,6 +189,7 @@ locals {
     seg_count = local.segment_count
     internal_cidr = local.gp_virtual_internal_ip_cidr
     offset = local.segment_gp_virtual_internal_ipv4_offset
+    etl_bar_cdw_ip = local.coordinator_etl_bar_ip
     pivnet_api_token = var.pivnet_api_token
     pivnet_url = var.pivnet_url
     gp_release_version = var.gp_release_version

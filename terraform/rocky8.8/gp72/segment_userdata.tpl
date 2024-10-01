@@ -9,12 +9,12 @@ runcmd:
     set -x
     export HOME=/root
 
-    wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 0 http://cdw:3128
-    echo "proxy=http://cdw:3128" >> /etc/yum.conf
+    wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 0 http://cdw-etl:3128
+    echo "proxy=http://cdw-etl:3128" >> /etc/yum.conf
     yum update -y
 
-    export http_proxy=http://cdw:3128
-    export https_proxy=http://cdw:3128
+    export http_proxy=http://cdw-etl:3128
+    export https_proxy=http://cdw-etl:3128
 
     echo "server cdw prefer" >> /etc/chrony.conf
     systemctl restart chronyd
@@ -52,8 +52,8 @@ runcmd:
 
     mkdir -p /usr/local/greenplum-db/etc/environment.d/
     cat <<EOF > /usr/local/greenplum-db/etc/environment.d/20-proxy.conf
-    export http_proxy=http://cdw:3128
-    export https_proxy=http://cdw:3128
+    export http_proxy=http://cdw-etl:3128
+    export https_proxy=http://cdw-etl:3128
     export no_proxy=localhost,127.0.0.1
     EOF
 

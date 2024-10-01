@@ -13,16 +13,7 @@ write_files:
     ### Interconnect Settings
     gp_interconnect_queue_depth=16
     gp_interconnect_snd_queue_depth=16
-    
-    # This value should be 5% of the total RAM on the VM
-    statement_mem=460MB
-    
-    # This value should be set to 25% of the total RAM on the VM
-    max_statement_mem=2048MB
-    
-    # This value should be set to 85% of the total RAM on the VM
-    gp_vmem_protect_limit=6963
-    
+
     # Since you have less I/O bandwidth, you can turn this parameter on
     gp_workfile_compression=on
     
@@ -219,4 +210,24 @@ runcmd:
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
       gpsync -f hosts-segments /usr/local/greenplum-db/bin/gpcopy_helper =:/usr/local/greenplum-db/bin
+    EOF
+
+    pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'madlib*rhel8-x86_64.tar.gz' -d /home/gpadmin
+    tar xzvf /home/gpadmin/madlib*rhel8-x86_64.tar.gz -C /home/gpadmin
+
+    pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'postgis*rhel8-x86_64.gppkg' -d /home/gpadmin
+    chmod 644 /home/gpadmin/postgis*rhel8-x86_64.gppkg
+
+    su - gpadmin <<EOF
+      set -x
+      source /usr/local/greenplum-db/greenplum_path.sh
+      gppkg install -a /home/gpadmin/madlib*rhel8-x86_64/madlib*rhel8-x86_64.gppkg.tar.gz
+      gppkg install -a /home/gpadmin/postgis*rhel8-x86_64.gppkg
+      gpstop -M fast -ra
+    EOF
+
+    su - gpadmin <<EOF
+      set -x
+      source /usr/local/greenplum-db/greenplum_path.sh
+      gpstop -M fast -ra
     EOF
