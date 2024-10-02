@@ -97,6 +97,9 @@ runcmd:
     set -x
     export HOME=/root
 
+    echo "allow ${internal_cidr}" >> /etc/chrony.conf
+    systemctl restart chronyd
+
     # Install SQUID as making the cdw node the proxy server
     dnf install epel-release -y
     dnf install squid -y
