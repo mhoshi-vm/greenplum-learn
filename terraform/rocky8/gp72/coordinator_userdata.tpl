@@ -141,7 +141,7 @@ runcmd:
       gpssh -f hosts-all "sudo mkdir -p /var/log/gpv"
       gpssh -f hosts-all "sudo chmod 777 /var/log/gpv"
       /etc/gpv/postmaster-service-initialize
-      gpssh -f /home/gpadmin/hosts-all -e 'usermod -a -G systemd-journal gpadmin'
+      gpssh -f /home/gpadmin/hosts-all -e 'sudo usermod -a -G systemd-journal gpadmin'
     EOF
 
     if ls /home/gpadmin/gp_downloads/pxf*
