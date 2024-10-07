@@ -29,11 +29,11 @@ variable "base_vm_name" {
 }
 variable "resource_pool_name" {
   description= "The name of a dedicated resource pool for Greenplum VMs which will be created by Terraform"
-  default = "greenplum7.2.0"
+  default = "greenplum"
 }
 variable "prefix" {
   description= "A customizable prefix name for the resource pool, Greenplum VMs, and affinity rules which will be created by Terraform"
-  default = "gpv72"
+  default = "gpv73"
 }
 variable "gp_virtual_external_network" {
   default = "gp-virtual-external"
