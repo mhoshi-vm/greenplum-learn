@@ -20,12 +20,6 @@ cloud_init_modules:
  - users_groups
  - write_files
 disable_root: false
-chpasswd:
-  users:
-  - name: gpadmin
-    type: text
-    password: '!QAZxsw2#EDC'
-  expire: False
 ssh_pwauth: True
 users:
 - name: gpadmin
