@@ -81,9 +81,9 @@ write_files:
     master_port = 5432
     web_port = 28080
     rpc_port = 8899
-    enable_ssl = false
+    enable_ssl = true
     # Uncomment and set the ssl_cert_file if you set enable_ssl to true.
-    # ssl_cert_file = /etc/certs/mycert
+    ssl_cert_file = /usr/local/greenplum-cc/server.pem
     enable_kerberos = false
     # Uncomment and set the following parameters if you set enable_kerberos to true.
     # webserver_url = <webserver_service_url>
@@ -185,6 +185,13 @@ runcmd:
     chown -R gpadmin:gpadmin /usr/local/greenplum-cc-${gpcc_release_version}
     ln -s /usr/local/greenplum-cc-${gpcc_release_version} /usr/local/greenplum-cc
     chown -R gpadmin:gpadmin /usr/local/greenplum-cc
+
+    # Add simple GPCC certs
+    openssl req -newkey rsa:2048 -noenc -keyout domain.key -out domain.csr -subj "/CN=localhost"
+    openssl req -key domain.key -new -x509 -days 365 -out domain.crt -subj "/CN=localhost"
+
+    cat domain.key >> /usr/local/greenplum-cc/server.pem
+    cat domain.crt >> /usr/local/greenplum-cc/server.pem
 
     su - gpadmin <<EOF
       set -x
