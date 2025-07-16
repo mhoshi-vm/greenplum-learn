@@ -187,11 +187,12 @@ runcmd:
     chown -R gpadmin:gpadmin /usr/local/greenplum-cc
 
     # Add simple GPCC certs
-    openssl req -newkey rsa:2048 -noenc -keyout domain.key -out domain.csr -subj "/CN=localhost"
-    openssl req -key domain.key -new -x509 -days 365 -out domain.crt -subj "/CN=localhost"
+    openssl req -newkey rsa:2048 -nodes -keyout domain.key -out domain.csr -subj "/CN=localhost"
+    openssl req -key domain.key -new -x509 -days 3650 -out domain.crt -subj "/CN=localhost"
 
     cat domain.key >> /usr/local/greenplum-cc/server.pem
     cat domain.crt >> /usr/local/greenplum-cc/server.pem
+    chown gpadmin:gpadmin /usr/local/greenplum-cc/server.pem
 
     su - gpadmin <<EOF
       set -x
@@ -203,7 +204,7 @@ runcmd:
       ./gpccinstall-${gpcc_release_version} -c /home/gpadmin/gpcc_config
     EOF
 
-    if ! ls /usr/local/greenplum-db-${gpcc_release_version}/lib/postgresql/metrics_collector.so
+    if ! ls /usr/local/greenplum-db-${gp_release_version}/lib/postgresql/metrics_collector.so
     then
        su - gpadmin <<EOF
          set -x
@@ -212,9 +213,15 @@ runcmd:
          cd /usr/local/greenplum-cc/gppkg
          FILE=\`ls *${gpcc_release_version}* | tail -1\`
          $GPPKG_INSTALL_CMD \$FILE
-         gpcc start
     EOF
     fi
+
+    su - gpadmin <<EOF
+       set -x
+       source /usr/local/greenplum-db/greenplum_path.sh
+       source /usr/local/greenplum-cc/gpcc_path.sh
+       gpcc start
+    EOF
 
     pivnet download-product-files --accept-eula --product-slug='gpdb-data-copy' --release-version='${gpcopy_release_version}'  -g 'gpcopy-*.tar.gz' -d /home/gpadmin/gp_downloads
     tar xzvf /home/gpadmin/gp_downloads/gpcopy-*.tar.gz -C /home/gpadmin
