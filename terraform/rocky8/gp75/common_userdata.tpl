@@ -180,11 +180,11 @@ runcmd:
     echo kernel.shmmax = $(expr $(getconf _PHYS_PAGES) / 2 \* $(getconf PAGE_SIZE)) >> /etc/sysctl.d/20-gpdb.conf
 
     MEM=`free | grep ^Mem: | awk '{print $2}'`
+
+    # https://knowledge.broadcom.com/external/article/387823/sysctl-setting-key-vmminfreekbytes-inval.html
     if [[ MEM -lt 67108864 ]]
     then
-      echo 'vm.dirty_background_bytes = 0' >> /etc/sysctl.d/20-gpdb.conf
       echo 'vm.dirty_background_ratio = 3' >> /etc/sysctl.d/20-gpdb.conf
-      echo 'vm.dirty_bytes = 0' >> /etc/sysctl.d/20-gpdb.conf
       echo 'vm.dirty_ratio = 10' >> /etc/sysctl.d/20-gpdb.conf
     else
       echo 'vm.dirty_background_bytes = 1610612736 # 1.5GB' >> /etc/sysctl.d/20-gpdb.conf
@@ -193,8 +193,7 @@ runcmd:
       echo 'vm.dirty_ratio = 0' >> /etc/sysctl.d/20-gpdb.conf
     fi
 
-
-    sysctl -p
+    sysctl --system
 
     systemctl stop firewalld.service
     systemctl disable firewalld.service
