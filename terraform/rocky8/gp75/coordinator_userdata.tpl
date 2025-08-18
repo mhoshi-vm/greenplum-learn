@@ -126,12 +126,14 @@ runcmd:
     pivnet login --api-token='${pivnet_api_token}' 
     mkdir /home/gpadmin/gp_downloads/
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-*el8-*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-clients-${gp_release_version}-*el8-*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-virtual-service-*el8*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp'"$${GP_MAJOR_VER}"'-6*el8*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*el8-*' -d /home/gpadmin/gp_downloads
 
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
     yum -y install /home/gpadmin/gp_downloads/greenplum-db-*.rpm
+    yum -y install /home/gpadmin/gp_downloads/greenplum-db-clients-*.rpm
     dnf install -y /home/gpadmin/gp_downloads/greenplum-virtual-service-*el8*
 
     until [[ `find /tmp/complete -type f | wc -l` -eq ${seg_count} ]]
@@ -172,9 +174,11 @@ runcmd:
     fi
 
     echo 'export MASTER_DATA_DIRECTORY=/gpdata/coordinator/gpseg-1' >> /home/gpadmin/.bashrc
+    echo 'export COORDINATOR_DATA_DIRECTORY=/gpdata/coordinator/gpseg-1' >> /home/gpadmin/.bashrc
     echo 'export PGDATABASE=template1' >> /home/gpadmin/.bashrc
     echo 'export GPHOME=/usr/local/greenplum-db' >> /home/gpadmin/.bashrc
-    echo 'export PATH=$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
+    echo 'export GPCLIENT=/usr/local/greenplum-db-clients' >> /home/gpadmin/.bashrc
+    echo 'export PATH=$GPCLIENT/bin:$GPHOME/bin:$PATH' >> /home/gpadmin/.bashrc
     echo 'export LD_LIBRARY_PATH=$GPHOME/lib' >> /home/gpadmin/.bashrc
 
     chown -R gpadmin:gpadmin /usr/local/greenplum-db*
@@ -271,5 +275,20 @@ runcmd:
           $GPPKG_INSTALL_CMD /home/gpadmin/madlib*el8-x86_64/madlib*el8-x86_64.gppkg.tar.gz
           $GPPKG_INSTALL_CMD /home/gpadmin/postgis*el8-x86_64.gppkg
           gpstop -M fast -ra
+    EOF
+
+        su - gpadmin <<EOF
+          set -x
+          source /usr/local/greenplum-db/greenplum_path.sh
+          createdb gpmlbot
+          psql postgres -c "CREATE ROLE gpmlbot WITH LOGIN;"
+          psql --dbname gpmlbot -c "CREATE EXTENSION plpython3u; CREATE EXTENSION madlib;"
+          psql --dbname gpmlbot -c "CREATE EXTENSION IF NOT EXISTS pgml;"
+          echo -e 'host \t gpmlbot \t gpmlbot \t samehost \t trust' >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
+          echo -e 'host \t gpmlbot \t gpmlbot \t 127.0.0.1/32 \t trust' >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
+          echo -e 'host \t gpmlbot \t gpmlbot \t ::1/128 \t trust' >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
+          gpstop -u
+          gpmlbot migrate up --gphome /usr/local/greenpum-db --port 5432 --user gpadmin
+          gpmlbot load-datasets --gphome /usr/local/greenpum-db --port 5432 --user gpadmin --database gpmlbot
     EOF
     fi
