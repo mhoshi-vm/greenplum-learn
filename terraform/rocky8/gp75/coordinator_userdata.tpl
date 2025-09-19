@@ -284,9 +284,9 @@ runcmd:
           psql postgres -c "CREATE ROLE gpmlbot WITH LOGIN;"
           psql --dbname gpmlbot -c "CREATE EXTENSION plpython3u; CREATE EXTENSION madlib;"
           psql --dbname gpmlbot -c "CREATE EXTENSION IF NOT EXISTS pgml;"
-          echo -e 'host \t gpmlbot \t gpmlbot \t samehost \t trust' >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
-          echo -e 'host \t gpmlbot \t gpmlbot \t 127.0.0.1/32 \t trust' >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
-          echo -e 'host \t gpmlbot \t gpmlbot \t ::1/128 \t trust' >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
+          echo -e 'host \t gpmlbot \t gpmlbot \t samehost \t trust' >> $${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
+          echo -e 'host \t gpmlbot \t gpmlbot \t 127.0.0.1/32 \t trust' >> $${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
+          echo -e 'host \t gpmlbot \t gpmlbot \t ::1/128 \t trust' >> $${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf
           gpstop -u
           gpmlbot migrate up --gphome /usr/local/greenpum-db --port 5432 --user gpadmin
           gpmlbot load-datasets --gphome /usr/local/greenpum-db --port 5432 --user gpadmin --database gpmlbot

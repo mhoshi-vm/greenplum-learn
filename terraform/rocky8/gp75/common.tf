@@ -6,11 +6,11 @@ variable "pivnet_url" {
 }
 
 variable "gp_release_version" {
-  default = "7.5.1"
+  default = "7.5.4"
 }
 
 variable "gpcc_release_version" {
-  default = "7.4.0"
+  default = "7.5.0"
 }
 
 variable "gpcopy_release_version" {
