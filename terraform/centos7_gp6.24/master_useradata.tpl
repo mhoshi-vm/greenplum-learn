@@ -211,7 +211,7 @@ runcmd:
     cat <<EOC > /home/gpadmin/gpsscfg1.json
     {
            "Gpfdist": {
-               "Host": "mdw"
+               "Host": "cdw"
            }
     }
     EOC
