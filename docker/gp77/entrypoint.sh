@@ -13,7 +13,7 @@ fi
 # 3. Start Greenplum
 source /usr/local/greenplum-db/greenplum_path.sh
 echo "--- Starting Greenplum (Initialized on $BUILD_HOSTNAME) ---"
-gpstart -a || { cat $COORDINATOR_DATA_DIRECTORY/log/* ; cat /gpdata/coordinator/gpseg-1/postgresql.conf ; exit 1;}
+gpstart -a || { cat $COORDINATOR_DATA_DIRECTORY/log/* ; exit 1;}
 
 # 4. Create Custom Database and User (Configurable via ENV)
 # --------------------------------------------------------
