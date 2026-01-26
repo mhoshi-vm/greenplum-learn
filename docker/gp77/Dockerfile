@@ -53,7 +53,8 @@ RUN yum -y install ${PIVNET_DL_DIR}/greenplum-db-*.rpm && \
     chown -R gpadmin:gpadmin /gpdata
 
 # 5. Install NLTK
-RUN pip3.9 install nltk
+RUN python3.11 -m ensurepip --default-pip && \
+    python3.11 -m pip install nltk
 
 # 6. Build-Time Initialization
 RUN rm -rf /run/nologin && \
@@ -81,8 +82,6 @@ RUN rm -rf /run/nologin && \
     # Config Auth
     echo "host all all 0.0.0.0/0 trust" >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf && \
     # Install Extensions & Config
-    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gpstop -u" && \
-    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gpconfig -c plpython3.python_path -v \'/usr/local/lib/python3.9/site-packages:/usr/local/lib64/python3.9/site-packages:/usr/lib/python3.9/site-packages:/usr/lib64/python3.9/site-packages\' --skipvalidation" && \
     # Extract MADlib (tarball is needed for gppkg)
     tar xzvf /home/gpadmin/madlib*el8-x86_64.tar.gz -C /home/gpadmin && \
     # Install MADlib
