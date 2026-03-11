@@ -276,6 +276,48 @@ runcmd:
           gpstop -M fast -ra
     EOF
 
+        pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'greenplum-text*el8_x86_64.tar.gz' -d /home/gpadmin
+        chmod 644 /home/gpadmin/greenplum-text*el8_x86_64.tar.gz
+        GPTEXT_VERSION=`ls -t /home/gpadmin/greenplum-text* | head -n1 | perl -pe 's/.*-(\d+\.\d+\.\d+)-.*/$1/'`
+        mkdir /usr/local/greenplum-text-$GPTEXT_VERSION
+        mkdir /usr/local/greenplum-solr
+        chown gpadmin:gpadmin /usr/local/greenplum-text-$GPTEXT_VERSION
+        chmod 775 /usr/local/greenplum-text-$GPTEXT_VERSION
+        chown gpadmin:gpadmin /usr/local/greenplum-solr
+        chmod 775 /usr/local/greenplum-solr
+
+        su - gpadmin <<EOF
+          set -x
+          source /usr/local/greenplum-db/greenplum_path.sh
+
+          gpssh -f hosts-segments "sudo mkdir `ls -d /usr/local/greenplum-text-*`"
+          gpssh -f hosts-segments "sudo mkdir /usr/local/greenplum-solr"
+          gpssh -f hosts-segments "sudo chown gpadmin:gpadmin /usr/local/greenplum-text-*"
+          gpssh -f hosts-segments "sudo chmod 775 /usr/local/greenplum-text-*"
+          gpssh -f hosts-segments "sudo chown gpadmin:gpadmin /usr/local/greenplum-solr"
+          gpssh -f hosts-segments "sudo chmod 775 /usr/local/greenplum-solr"
+
+          gpssh -f hosts-all "sudo yum install -y nc"
+          gpssh -f hosts-all "sudo dnf install -y epel-release"
+          gpssh -f hosts-all "sudo dnf install -y tesseract"
+          gpssh -f hosts-all "sudo dnf install -y tesseract-langpack-jpn"
+
+          cd /home/gpadmin
+          tar xzvf `ls -t greenplum-text-* | head -n1`
+          chmod +x `ls -t greenplum-text-*.bin | head -n1`
+
+          cp gptext_install_config gptext_install_config.orig
+          sed -i 's/^#GPTEXT_HOSTS/GPTEXT_HOSTS/g' gptext_install_config
+          sed -i 's/^# *GPTEXT_ENABLE_USER_AUTH/GPTEXT_ENABLE_USER_AUTH/g' gptext_install_config
+          sed -i 's/^# *GPTEXT_ADMIN_USER/GPTEXT_ADMIN_USER/g' gptext_install_config
+          sed -i 's/^# *GPTEXT_ADMIN_PWD/GPTEXT_ADMIN_PWD/g' gptext_install_config
+          sed -i 's@/data/gpdata@/gpdata@g' gptext_install_config
+          echo "declare -a ZOO_HOSTS=(sdw1 sdw1 sdw1)" >> gptext_install_config
+          echo 'JAVA_OPTS="-Xms256M -Xmx1024M -Dhttp.proxyHost=cdw -Dhttp.proxyPort=3128 -Dhttps.proxyHost=cdw -Dhttps.proxyPort=3128"' >> gptext_install_config
+
+          ./greenplum-text-*.bin -c gptext_install_config -d `ls -d /usr/local/greenplum-text-*`
+    EOF
+
         echo -e 'host \t gpmlbot \t gpmlbot \t samehost \t trust' >> /gpdata/coordinator/gpseg-1/pg_hba.conf
         echo -e 'host \t gpmlbot \t gpmlbot \t 127.0.0.1/32 \t trust' >> /gpdata/coordinator/gpseg-1/pg_hba.conf
         echo -e 'host \t gpmlbot \t gpmlbot \t ::1/128 \t trust' >> /gpdata/coordinator/gpseg-1/pg_hba.conf
