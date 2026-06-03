@@ -1,7 +1,7 @@
 FROM rockylinux:8
 
 # Arguments & Env Vars
-ARG GP_RELEASE_VERSION=7.7.0
+ARG GP_RELEASE_VERSION=7.8.1
 # Token removed from default. Must be passed via --build-arg
 ARG PIVNET_API_TOKEN
 
@@ -38,7 +38,8 @@ RUN mkdir -p ${PIVNET_DL_DIR} && \
     pivnet login --api-token=${PIVNET_API_TOKEN} && \
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version=${GP_RELEASE_VERSION} -g "greenplum-db-${GP_RELEASE_VERSION}-*el8-*" -d ${PIVNET_DL_DIR} && \
     pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version=${GP_RELEASE_VERSION} -g 'madlib*el8-x86_64.tar.gz' -d /home/gpadmin && \
-    pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version=${GP_RELEASE_VERSION} -g 'postgis*el8-x86_64.gppkg' -d /home/gpadmin && \
+    # GP 7.8 ships both PostGIS 2.5.4 and 3.3.2; pin to the 3.x package.
+    pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version=${GP_RELEASE_VERSION} -g 'postgis-3*el8-x86_64.gppkg' -d /home/gpadmin && \
     chown -R gpadmin:gpadmin /home/gpadmin && \
     rm -f $HOME/.pivnetrc
 
@@ -61,7 +62,7 @@ RUN yum -y install ${PIVNET_DL_DIR}/greenplum-db-*.rpm && \
 # running 'gppkg install', which avoids SSH entirely.
 RUN SHAREDIR="$(${GPHOME}/bin/pg_config --sharedir)" && \
     # PostGIS: the payload tree (bin/lib/share/etc) maps straight into GPHOME
-    tar xzf /home/gpadmin/postgis-*-x86_64.gppkg -C ${GPHOME} bin lib share etc && \
+    tar xzf /home/gpadmin/postgis-3*-x86_64.gppkg -C ${GPHOME} bin lib share etc && \
     # MADlib: unwrap the outer tarball, then unpack the inner gppkg payload
     tar xzf /home/gpadmin/madlib-*el8-x86_64.tar.gz -C /home/gpadmin && \
     tar xzf /home/gpadmin/madlib-*/*.gppkg.tar.gz -C ${GPHOME} lib share && \
