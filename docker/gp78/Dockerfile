@@ -79,9 +79,13 @@ RUN SHAREDIR="$(${GPHOME}/bin/pg_config --sharedir)" && \
     chown -R gpadmin:gpadmin /usr/local/greenplum-db* && \
     rm -rf /home/gpadmin/madlib-*/ /home/gpadmin/postgis-*.gppkg /home/gpadmin/madlib-*el8-x86_64.tar.gz
 
-# 5. Install NLTK
+# 5. Install NLTK and common corpora
+# plpython3u uses this same python3.11, so NLTK is callable from SQL. Bundle the
+# punkt_tab tokenizer and the stopwords corpus (~15 MB) into gpadmin's NLTK data
+# directory so the common functions work without a separate download.
 RUN python3.11 -m ensurepip --default-pip && \
-    python3.11 -m pip install nltk
+    python3.11 -m pip install nltk && \
+    su gpadmin -c "python3.11 -m nltk.downloader -d /home/gpadmin/nltk_data punkt_tab stopwords"
 
 # 5.5 Install PXF (Platform Extension Framework) + Java 21
 # PXF is a JVM service, so it needs a JDK. The rpm was downloaded in step 3.

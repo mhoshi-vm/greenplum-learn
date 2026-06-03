@@ -15,7 +15,7 @@ This is for local learning and testing, not for production use.
 | MADlib | 2.2.0 |
 | PXF (Platform Extension Framework) | 8.0.0 |
 | OpenJDK (for PXF) | 21 |
-| NLTK | latest (pip) |
+| NLTK | latest (pip), with punkt_tab + stopwords corpora |
 
 The cluster is single-node (1 coordinator + 1 primary segment). The coordinator
 listens on port 5432 and the segment on port 6000.
@@ -269,6 +269,70 @@ For other data sources such as HDFS, S3, or JDBC, place the corresponding
 configuration files (`core-site.xml`, `jdbc-site.xml`, etc.) under the same
 `$PXF_BASE/clusters/default/servers/<server-name>/` directory, then apply them
 with `pxf cluster sync` and `pxf cluster restart`.
+
+## Using NLTK
+
+NLTK (Natural Language Toolkit) is a Python library for natural language
+processing. It is installed into the Python interpreter that Greenplum's
+PL/Python (`plpython3u`) uses, so you can call it from SQL functions and run
+text processing in the database.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS plpython3u;
+
+-- import works out of the box
+CREATE OR REPLACE FUNCTION nltk_version() RETURNS text AS $$
+    import nltk
+    return nltk.__version__
+$$ LANGUAGE plpython3u;
+
+SELECT nltk_version();   -- e.g. 3.9.4
+```
+
+### Corpora
+
+The `punkt_tab` tokenizer and the `stopwords` corpus are bundled (in
+`/home/gpadmin/nltk_data`), so the examples below work without any download.
+
+Other corpora and models are not included. Download the ones you need as the
+`gpadmin` OS user; functions that need missing data fail with a `LookupError`
+until it is present:
+
+```
+docker exec -u gpadmin gp7 bash -lc 'python3.11 -m nltk.downloader wordnet averaged_perceptron_tagger_eng'
+```
+
+This image is single-node, so downloading on the one host is enough. On a
+multi-host cluster the data must exist on every segment host (or set the
+`NLTK_DATA` environment variable to a shared path).
+
+### Example
+
+```sql
+-- tokenize text (needs the punkt_tab tokenizer)
+CREATE OR REPLACE FUNCTION tokenize(t text) RETURNS text[] AS $$
+    import nltk
+    return nltk.word_tokenize(t)
+$$ LANGUAGE plpython3u;
+
+SELECT tokenize('Greenplum runs NLTK inside the database.');
+--                  tokenize
+-- ---------------------------------------------
+--  {Greenplum,runs,NLTK,inside,the,database,.}
+
+-- keep content words only (needs the stopwords corpus)
+CREATE OR REPLACE FUNCTION content_words(t text) RETURNS text[] AS $$
+    import nltk
+    from nltk.corpus import stopwords
+    sw = set(stopwords.words('english'))
+    return [w for w in nltk.word_tokenize(t.lower()) if w.isalpha() and w not in sw]
+$$ LANGUAGE plpython3u;
+
+SELECT content_words('Greenplum runs NLTK inside the database and it is fast');
+--               content_words
+-- --------------------------------------------
+--  {greenplum,runs,nltk,inside,database,fast}
+```
 
 ## Notes
 
