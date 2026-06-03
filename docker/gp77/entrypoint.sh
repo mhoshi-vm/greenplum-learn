@@ -34,6 +34,15 @@ source /usr/local/greenplum-db/greenplum_path.sh
 echo "--- Starting Greenplum (Initialized on $BUILD_HOSTNAME) ---"
 gpstart -a || { cat $COORDINATOR_DATA_DIRECTORY/log/* ; exit 1;}
 
+# 3.5 Start PXF (Platform Extension Framework), if installed
+if [ -x /usr/local/pxf-gp${GP_MAJOR_VER:-7}/bin/pxf ]; then
+    export GP_MAJOR_VER=${GP_MAJOR_VER:-7}
+    export JAVA_HOME=${JAVA_HOME:-/usr/lib/jvm/jre-21}
+    export PXF_BASE=${PXF_BASE:-/usr/local/pxf-gp${GP_MAJOR_VER}}
+    echo "--- Starting PXF ---"
+    /usr/local/pxf-gp${GP_MAJOR_VER}/bin/pxf cluster start || echo ">>> PXF failed to start (continuing)"
+fi
+
 # 4. Create Custom Database and User (Configurable via ENV)
 # --------------------------------------------------------
 # Set defaults if env vars are not provided

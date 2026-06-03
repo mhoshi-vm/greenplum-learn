@@ -2,6 +2,8 @@ FROM rockylinux:8
 
 # Arguments & Env Vars
 ARG GP_RELEASE_VERSION=7.8.1
+# PXF moved to its own Pivnet product (greenplum-pxf) starting with GP 7.8.
+ARG PXF_RELEASE_VERSION=7.1.2
 # Token removed from default. Must be passed via --build-arg
 ARG PIVNET_API_TOKEN
 
@@ -40,6 +42,9 @@ RUN mkdir -p ${PIVNET_DL_DIR} && \
     pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version=${GP_RELEASE_VERSION} -g 'madlib*el8-x86_64.tar.gz' -d /home/gpadmin && \
     # GP 7.8 ships both PostGIS 2.5.4 and 3.3.2; pin to the 3.x package.
     pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version=${GP_RELEASE_VERSION} -g 'postgis-3*el8-x86_64.gppkg' -d /home/gpadmin && \
+    # PXF: separate product (greenplum-pxf). Downloaded to /home/gpadmin so the
+    # RPM cleanup in step 4 (which only touches ${PIVNET_DL_DIR}) leaves it.
+    pivnet download-product-files --accept-eula --product-slug=greenplum-pxf --release-version=${PXF_RELEASE_VERSION} -g "pxf-gp${GP_MAJOR_VER}-*el8*.rpm" -d /home/gpadmin && \
     chown -R gpadmin:gpadmin /home/gpadmin && \
     rm -f $HOME/.pivnetrc
 
@@ -76,6 +81,18 @@ RUN SHAREDIR="$(${GPHOME}/bin/pg_config --sharedir)" && \
 # 5. Install NLTK
 RUN python3.11 -m ensurepip --default-pip && \
     python3.11 -m pip install nltk
+
+# 5.5 Install PXF (Platform Extension Framework) + Java 21
+# PXF is a JVM service, so it needs a JDK. The rpm was downloaded in step 3.
+RUN yum -y install java-21-openjdk && \
+    yum clean all && \
+    rpm -Uvh /home/gpadmin/pxf-gp${GP_MAJOR_VER}-*.rpm && \
+    rm -f /home/gpadmin/pxf-gp${GP_MAJOR_VER}-*.rpm && \
+    chown -R gpadmin:gpadmin /usr/local/pxf-gp${GP_MAJOR_VER} && \
+    echo "export GP_MAJOR_VER=${GP_MAJOR_VER}" >> /home/gpadmin/.bashrc && \
+    echo "export JAVA_HOME=/usr/lib/jvm/jre-21" >> /home/gpadmin/.bashrc && \
+    echo "export PXF_BASE=/usr/local/pxf-gp${GP_MAJOR_VER}" >> /home/gpadmin/.bashrc && \
+    echo 'export PATH=$PATH:/usr/local/pxf-gp'"${GP_MAJOR_VER}"'/bin' >> /home/gpadmin/.bashrc
 
 # 6. Build-Time Initialization
 # NOTE: gpinitsystem can intermittently deadlock under Rosetta/amd64 emulation
@@ -120,6 +137,14 @@ RUN rm -rf /run/nologin && \
     # The package payloads were already unpacked into GPHOME in step 4.5.
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS postgis;'" && \
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS madlib CASCADE;'" && \
+    # Register PXF (installs its extension into GPHOME and sets pxf.pxf_base),
+    # then enable it in template1. PGDATABASE=template1 is used because no
+    # gpadmin database exists yet; the PXF server itself is started at runtime
+    # by the entrypoint, not here.
+    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; export JAVA_HOME=/usr/lib/jvm/jre-21 PXF_BASE=/usr/local/pxf-gp${GP_MAJOR_VER} PGDATABASE=template1; /usr/local/pxf-gp${GP_MAJOR_VER}/bin/pxf prepare; /usr/local/pxf-gp${GP_MAJOR_VER}/bin/pxf cluster register" && \
+    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS pxf;'" && \
+    # Create the gpadmin database (the default PGDATABASE) carrying all extensions.
+    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; createdb gpadmin" && \
     # Final Shutdown
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gpstop -a" && \
     # Cleanup
