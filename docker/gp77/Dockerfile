@@ -52,11 +52,35 @@ RUN yum -y install ${PIVNET_DL_DIR}/greenplum-db-*.rpm && \
     mkdir -p /gpdata/coordinator /gpdata/primary /var/run/sshd && \
     chown -R gpadmin:gpadmin /gpdata
 
+# 4.5 Install MADlib & PostGIS payloads into GPHOME
+# NOTE: GP7's 'gppkg' tool uses a bundled libssh2 that cannot complete an SSH
+# handshake under Rosetta/amd64 emulation on Apple Silicon. It always fails with
+# "[Session(-9)] Error waiting on socket" even when connecting to localhost
+# (the plain OpenSSH client works, but gppkg does not use it). Because this is a
+# single-host image, we unpack the gppkg payloads straight into GPHOME instead of
+# running 'gppkg install', which avoids SSH entirely.
+RUN SHAREDIR="$(${GPHOME}/bin/pg_config --sharedir)" && \
+    # PostGIS: the payload tree (bin/lib/share/etc) maps straight into GPHOME
+    tar xzf /home/gpadmin/postgis-*-x86_64.gppkg -C ${GPHOME} bin lib share etc && \
+    # MADlib: unwrap the outer tarball, then unpack the inner gppkg payload
+    tar xzf /home/gpadmin/madlib-*el8-x86_64.tar.gz -C /home/gpadmin && \
+    tar xzf /home/gpadmin/madlib-*/*.gppkg.tar.gz -C ${GPHOME} lib share && \
+    # MADlib post-install (from its pkgspec): materialize madlib--*.sql from the
+    # .sql.in templates and substitute the shared-library directory.
+    find "${SHAREDIR}" -name 'madlib--*.sql.in' | awk '{ old=$0; sub(/.in$/, "", $0); printf "cp %s %s\n", old, $0 }' | sh && \
+    find "${SHAREDIR}" -name 'madlib--*.sql' -exec sed -i "s#MADLIB_SHAREDIR#${SHAREDIR}/madlib/modules#g" {} + && \
+    chown -R gpadmin:gpadmin /usr/local/greenplum-db* && \
+    rm -rf /home/gpadmin/madlib-*/ /home/gpadmin/postgis-*.gppkg /home/gpadmin/madlib-*el8-x86_64.tar.gz
+
 # 5. Install NLTK
 RUN python3.11 -m ensurepip --default-pip && \
     python3.11 -m pip install nltk
 
 # 6. Build-Time Initialization
+# NOTE: gpinitsystem can intermittently deadlock under Rosetta/amd64 emulation
+# while restarting the cluster in production mode. Each attempt is therefore
+# bounded by a timeout and retried from a clean slate, so an emulation hang
+# fails fast and recovers instead of wedging the build forever.
 RUN rm -rf /run/nologin && \
     # --- MOCK PING START ---
     mv /usr/bin/ping /usr/bin/ping.orig && \
@@ -77,17 +101,24 @@ RUN rm -rf /run/nologin && \
     echo "declare -a PRIMARY_ARRAY=($BUILD_HOSTNAME~$BUILD_HOSTNAME~6000~/gpdata/primary/gpseg0~1~0)" >> /home/gpadmin/gpinitsystem_config && \
     # Start SSHD
     /usr/sbin/sshd && \
-    # Init System
-    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gpinitsystem -a -I /home/gpadmin/gpinitsystem_config" && \
+    # Init System (bounded by a timeout, retried from a clean slate on hang)
+    ( for attempt in 1 2 3; do \
+        echo ">>> gpinitsystem attempt $attempt/3"; \
+        if timeout -s KILL 420 su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gpinitsystem -a -I /home/gpadmin/gpinitsystem_config"; then \
+            echo ">>> gpinitsystem succeeded on attempt $attempt"; break; \
+        fi; \
+        if [ "$attempt" = "3" ]; then echo ">>> gpinitsystem failed after 3 attempts" >&2; exit 1; fi; \
+        echo ">>> attempt $attempt hung/failed; cleaning up partial cluster before retry"; \
+        pkill -9 -u gpadmin || true; sleep 2; \
+        rm -rf ${COORDINATOR_DATA_DIRECTORY} /gpdata/primary/gpseg0 /home/gpadmin/gpAdminLogs/* /tmp/.s.PGSQL.* 2>/dev/null || true; \
+        sleep 3; \
+      done ) && \
     # Config Auth
     echo "host all all 0.0.0.0/0 trust" >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf && \
-    # Install Extensions & Config
-    # Extract MADlib (tarball is needed for gppkg)
-    tar xzvf /home/gpadmin/madlib*el8-x86_64.tar.gz -C /home/gpadmin && \
-    # Install MADlib
-    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gppkg install -a /home/gpadmin/madlib*/*.gppkg.tar.gz" && \
-    # Install PostGIS
-    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gppkg install -a /home/gpadmin/postgis*.gppkg" && \
+    # Enable MADlib & PostGIS in template1 so every database inherits them.
+    # The package payloads were already unpacked into GPHOME in step 4.5.
+    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS postgis;'" && \
+    su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS madlib CASCADE;'" && \
     # Final Shutdown
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; gpstop -a" && \
     # Cleanup
