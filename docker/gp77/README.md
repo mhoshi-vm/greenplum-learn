@@ -12,7 +12,7 @@ MADlib・PostGIS・PXF・NLTK を同梱し、起動するとすぐに SQL を実
 | Greenplum Database | 7.8.1 |
 | PostGIS | 3.3.2 |
 | MADlib | 2.2.0 |
-| PXF (Platform Extension Framework) | 7.1.2 |
+| PXF (Platform Extension Framework) | 8.0.0 |
 | OpenJDK (PXF 用) | 21 |
 | NLTK | 最新 (pip) |
 
@@ -46,7 +46,7 @@ docker build --build-arg PIVNET_API_TOKEN=<broadcom download token> -t gp7 .
 |---|---|---|
 | `PIVNET_API_TOKEN` | （なし・必須） | Broadcom のダウンロードトークン |
 | `GP_RELEASE_VERSION` | `7.8.1` | Greenplum 本体・MADlib・PostGIS のリリースバージョン |
-| `PXF_RELEASE_VERSION` | `7.1.2` | PXF のリリースバージョン（pivnet 製品 `greenplum-pxf`） |
+| `PXF_RELEASE_VERSION` | `8.0.0` | PXF のリリースバージョン（pivnet 製品 `greenplum-pxf`）。PXF 8 は Java 17/21 が必須 |
 
 別バージョンを使う例:
 
@@ -214,7 +214,7 @@ cat > $SRV/core-site.xml <<'XML'
 </configuration>
 XML
 
-# アクセスを許可する基準パス（PXF 6/7 では必須）
+# アクセスを許可する基準パス（pxf.fs.basePath は PXF 6 以降で必須）
 cat > $SRV/pxf-site.xml <<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>

@@ -3,7 +3,8 @@ FROM rockylinux:8
 # Arguments & Env Vars
 ARG GP_RELEASE_VERSION=7.8.1
 # PXF moved to its own Pivnet product (greenplum-pxf) starting with GP 7.8.
-ARG PXF_RELEASE_VERSION=7.1.2
+# PXF 8 requires Java 17 or 21 (Java 8/11 are no longer supported).
+ARG PXF_RELEASE_VERSION=8.0.0
 # Token removed from default. Must be passed via --build-arg
 ARG PIVNET_API_TOKEN
 
