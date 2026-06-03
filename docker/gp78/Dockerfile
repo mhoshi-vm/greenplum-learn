@@ -136,8 +136,9 @@ RUN rm -rf /run/nologin && \
         rm -rf ${COORDINATOR_DATA_DIRECTORY} /gpdata/primary/gpseg0 /home/gpadmin/gpAdminLogs/* /tmp/.s.PGSQL.* 2>/dev/null || true; \
         sleep 3; \
       done ) && \
-    # Config Auth
+    # Config Auth (allow both IPv4 and IPv6; e.g. "localhost" resolves to ::1)
     echo "host all all 0.0.0.0/0 trust" >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf && \
+    echo "host all all ::/0 trust"      >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf && \
     # Enable MADlib & PostGIS in template1 so every database inherits them.
     # The package payloads were already unpacked into GPHOME in step 5.
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS postgis;'" && \
