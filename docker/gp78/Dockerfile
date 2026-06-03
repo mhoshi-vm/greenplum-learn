@@ -59,7 +59,7 @@ RUN yum -y install ${PIVNET_DL_DIR}/greenplum-db-*.rpm && \
     mkdir -p /gpdata/coordinator /gpdata/primary /var/run/sshd && \
     chown -R gpadmin:gpadmin /gpdata
 
-# 4.5 Install MADlib & PostGIS payloads into GPHOME
+# 5. Install MADlib & PostGIS payloads into GPHOME
 # NOTE: GP7's 'gppkg' tool uses a bundled libssh2 that cannot complete an SSH
 # handshake under Rosetta/amd64 emulation on Apple Silicon. It always fails with
 # "[Session(-9)] Error waiting on socket" even when connecting to localhost
@@ -79,7 +79,7 @@ RUN SHAREDIR="$(${GPHOME}/bin/pg_config --sharedir)" && \
     chown -R gpadmin:gpadmin /usr/local/greenplum-db* && \
     rm -rf /home/gpadmin/madlib-*/ /home/gpadmin/postgis-*.gppkg /home/gpadmin/madlib-*el8-x86_64.tar.gz
 
-# 5. Install NLTK and common corpora
+# 6. Install NLTK and common corpora
 # plpython3u uses this same python3.11, so NLTK is callable from SQL. Bundle the
 # punkt_tab tokenizer and the stopwords corpus (~15 MB) into gpadmin's NLTK data
 # directory so the common functions work without a separate download.
@@ -87,7 +87,7 @@ RUN python3.11 -m ensurepip --default-pip && \
     python3.11 -m pip install nltk && \
     su gpadmin -c "python3.11 -m nltk.downloader -d /home/gpadmin/nltk_data punkt_tab stopwords"
 
-# 5.5 Install PXF (Platform Extension Framework) + Java 21
+# 7. Install PXF (Platform Extension Framework) + Java 21
 # PXF is a JVM service, so it needs a JDK. The rpm was downloaded in step 3.
 RUN yum -y install java-21-openjdk && \
     yum clean all && \
@@ -99,7 +99,7 @@ RUN yum -y install java-21-openjdk && \
     echo "export PXF_BASE=/usr/local/pxf-gp${GP_MAJOR_VER}" >> /home/gpadmin/.bashrc && \
     echo 'export PATH=$PATH:/usr/local/pxf-gp'"${GP_MAJOR_VER}"'/bin' >> /home/gpadmin/.bashrc
 
-# 6. Build-Time Initialization
+# 8. Build-Time Initialization
 # NOTE: gpinitsystem can intermittently deadlock under Rosetta/amd64 emulation
 # while restarting the cluster in production mode. Each attempt is therefore
 # bounded by a timeout and retried from a clean slate, so an emulation hang
@@ -139,7 +139,7 @@ RUN rm -rf /run/nologin && \
     # Config Auth
     echo "host all all 0.0.0.0/0 trust" >> ${COORDINATOR_DATA_DIRECTORY}/pg_hba.conf && \
     # Enable MADlib & PostGIS in template1 so every database inherits them.
-    # The package payloads were already unpacked into GPHOME in step 4.5.
+    # The package payloads were already unpacked into GPHOME in step 5.
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS postgis;'" && \
     su gpadmin -c "source /usr/local/greenplum-db/greenplum_path.sh; psql -d template1 -c 'CREATE EXTENSION IF NOT EXISTS madlib CASCADE;'" && \
     # Register PXF (installs its extension into GPHOME and sets pxf.pxf_base),
