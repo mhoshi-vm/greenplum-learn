@@ -127,7 +127,8 @@ runcmd:
     mkdir /home/gpadmin/gp_downloads/
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-${gp_release_version}-*el8-*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-db-clients-${gp_release_version}-*el8-*' -d /home/gpadmin/gp_downloads
-    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'pxf-gp'"$${GP_MAJOR_VER}"'-6*el8*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='${pxf_product_slug}' --release-version='${pxf_release_version}' -g 'pxf-gp'"$${GP_MAJOR_VER}"'-*el8*' -d /home/gpadmin/gp_downloads
+    pivnet download-product-files --accept-eula --product-slug='vmware-greenplum' --release-version='${gp_release_version}' -g 'greenplum-disaster-recovery*el8*' -d /home/gpadmin/gp_downloads
     pivnet download-product-files --accept-eula --product-slug='gpdb-command-center' --release-version='${gpcc_release_version}' -g 'greenplum-cc-web-*el8-*' -d /home/gpadmin/gp_downloads
 
     chown -R gpadmin:gpadmin /home/gpadmin/gp_downloads
@@ -156,7 +157,10 @@ runcmd:
       source /usr/local/greenplum-db/greenplum_path.sh
       gpssh -f hosts-all "sudo mkdir -p /var/log/gpv"
       gpssh -f hosts-all "sudo chmod 777 /var/log/gpv"
-      /etc/gpv/postmaster-service-initialize
+      # Only present on the GPV appliance image, skip it on a plain Rocky8 template
+      if [ -x /etc/gpv/postmaster-service-initialize ]; then
+        /etc/gpv/postmaster-service-initialize
+      fi
       gpssh -f /home/gpadmin/hosts-all -e 'sudo usermod -a -G systemd-journal gpadmin'
     EOF
 
@@ -183,6 +187,9 @@ runcmd:
     chown -R gpadmin:gpadmin /usr/local/greenplum-db*
     chgrp -R gpadmin /usr/local/greenplum-db*
 
+    rpm -ivh /home/gpadmin/gp_downloads/greenplum-disaster-recovery*
+    chown -R gpadmin:gpadmin /usr/local/gpdr
+
     # Enable GPCC
     mkdir -p /usr/local/greenplum-cc-${gpcc_release_version}
     chown -R gpadmin:gpadmin /usr/local/greenplum-cc-${gpcc_release_version}
@@ -203,7 +210,7 @@ runcmd:
       gpconfig -c shared_preload_libraries -v 'metrics_collector'
       unzip /home/gpadmin/gp_downloads/greenplum-cc-web-*.zip -d /home/gpadmin/
       cd greenplum-cc-web-${gpcc_release_version}-*
-      gpstop -r -a
+      gpstop -M fast -r -a
       ./gpccinstall-${gpcc_release_version} -c /home/gpadmin/gpcc_config
     EOF
 
@@ -247,7 +254,8 @@ runcmd:
           source /usr/local/greenplum-db/greenplum_path.sh
           $GPPKG_INSTALL_CMD gp_downloads/DataSciencePython*-el8_x86_64.gppkg
           gpconfig -c shared_preload_libraries -v 'pgml,metrics_collector'
-          gpstop -r -a
+          # smart mode cannot shut down while the gpcc/gpmon sessions are connected
+          gpstop -M fast -r -a
     EOF
 
         export DSP_DIR=`ls -d /usr/local/greenplum-db/ext/DataSciencePython*`
@@ -264,19 +272,32 @@ runcmd:
 
         pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'madlib*el8-x86_64.tar.gz' -d /home/gpadmin
         tar xzvf /home/gpadmin/madlib*el8-x86_64.tar.gz -C /home/gpadmin
+        # The package inside the tarball no longer carries the el8-x86_64 suffix (madlib 2.2.x
+        # ships madlib-<ver>-gp7.gppkg.tar.gz), so resolve whatever is in there
+        MADLIB_DIR=`ls -d /home/gpadmin/madlib*el8-x86_64 | tail -n1`
+        MADLIB_PKG=`ls $MADLIB_DIR/madlib*.gppkg 2>/dev/null | tail -n1`
+        if [ -z "$MADLIB_PKG" ]; then
+          MADLIB_PKG=`ls $MADLIB_DIR/madlib*.gppkg.tar.gz | tail -n1`
+        fi
 
         pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'postgis*el8-x86_64.gppkg' -d /home/gpadmin
         chmod 644 /home/gpadmin/postgis*el8-x86_64.gppkg
+        # The glob matches both postgis 2.5.x and 3.3.x, gppkg only takes one package per call
+        POSTGIS_PKG=`ls /home/gpadmin/postgis*el8-x86_64.gppkg | sort -V | tail -n1`
 
         su - gpadmin <<EOF
           set -x
           source /usr/local/greenplum-db/greenplum_path.sh
-          $GPPKG_INSTALL_CMD /home/gpadmin/madlib*el8-x86_64/madlib*el8-x86_64.gppkg.tar.gz
-          $GPPKG_INSTALL_CMD /home/gpadmin/postgis*el8-x86_64.gppkg
+          $GPPKG_INSTALL_CMD $MADLIB_PKG
+          $GPPKG_INSTALL_CMD $POSTGIS_PKG
           gpstop -M fast -ra
     EOF
 
-        pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'greenplum-text*el8_x86_64.tar.gz' -d /home/gpadmin
+        # gptext is versioned independently from the database, it is no longer attached
+        # to the vmware-greenplum release
+        pivnet download-product-files --accept-eula --product-slug='${gptext_product_slug}' --release-version='${gptext_release_version}' -g 'greenplum-text*el8_x86_64.tar.gz' -d /home/gpadmin
+        if ls /home/gpadmin/greenplum-text*el8_x86_64.tar.gz
+        then
         chmod 644 /home/gpadmin/greenplum-text*el8_x86_64.tar.gz
         GPTEXT_VERSION=`ls -t /home/gpadmin/greenplum-text* | head -n1 | perl -pe 's/.*-(\d+\.\d+\.\d+)-.*/$1/'`
         mkdir /usr/local/greenplum-text-$GPTEXT_VERSION
@@ -317,6 +338,7 @@ runcmd:
 
           ./greenplum-text-*.bin -c gptext_install_config -d `ls -d /usr/local/greenplum-text-*`
     EOF
+        fi
 
         echo -e 'host \t gpmlbot \t gpmlbot \t samehost \t trust' >> /gpdata/coordinator/gpseg-1/pg_hba.conf
         echo -e 'host \t gpmlbot \t gpmlbot \t 127.0.0.1/32 \t trust' >> /gpdata/coordinator/gpseg-1/pg_hba.conf
@@ -327,11 +349,12 @@ runcmd:
           source /usr/local/greenplum-db/greenplum_path.sh
           createdb gpmlbot
           psql postgres -c "CREATE ROLE gpmlbot WITH LOGIN;"
-          psql --dbname gpmlbot -c "CREATE EXTENSION plpython3u; CREATE EXTENSION madlib;"
+          psql --dbname gpmlbot -c "CREATE EXTENSION plpython3u;"
+          psql --dbname gpmlbot -c "CREATE EXTENSION madlib;"
           psql --dbname gpmlbot -c "CREATE EXTENSION IF NOT EXISTS pgml;"
           gpstop -u
-          gpmlbot migrate up --gphome /usr/local/greenpum-db --port 5432 --user gpadmin
-          gpmlbot load-datasets --gphome /usr/local/greenpum-db --port 5432 --user gpadmin --database gpmlbot
+          gpmlbot migrate up --gphome /usr/local/greenplum-db --port 5432 --user gpadmin
+          gpmlbot load-datasets --gphome /usr/local/greenplum-db --port 5432 --user gpadmin --database gpmlbot
     EOF
         pivnet download-product-files --accept-eula --product-slug=vmware-greenplum --release-version='${gp_release_version}' -g 'plr*gp7-rhel8-x86_64.gppkg' -d /home/gpadmin
         su - gpadmin <<EOF

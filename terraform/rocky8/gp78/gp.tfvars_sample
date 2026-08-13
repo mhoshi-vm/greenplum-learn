@@ -1,0 +1,4 @@
+vsphere_server = "vc01.com"
+vsphere_user = "administrator@vsphere.local"
+vsphere_password = "aaaaaaa"
+pivnet_api_token = "bbbbbbb"
