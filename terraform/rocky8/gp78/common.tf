@@ -23,7 +23,7 @@ variable "pxf_product_slug" {
 }
 
 variable "pxf_release_version" {
-  default = "8.0.3"
+  default = "8.0.2"
 }
 
 # gptext is versioned independently from the database as well

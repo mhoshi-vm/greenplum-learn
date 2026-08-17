@@ -85,6 +85,7 @@ write_files:
     # Uncomment and set the ssl_cert_file if you set enable_ssl to true.
     ssl_cert_file = /usr/local/greenplum-cc/server.pem
     enable_kerberos = false
+    enable_grpc_tls = false
     # Uncomment and set the following parameters if you set enable_kerberos to true.
     # webserver_url = <webserver_service_url>
     # krb_mode = 1
@@ -204,6 +205,7 @@ runcmd:
     cat domain.crt >> /usr/local/greenplum-cc/server.pem
     chown gpadmin:gpadmin /usr/local/greenplum-cc/server.pem
 
+
     su - gpadmin <<EOF
       set -x
       source /usr/local/greenplum-db/greenplum_path.sh
@@ -225,6 +227,9 @@ runcmd:
          $GPPKG_INSTALL_CMD \$FILE
     EOF
     fi
+
+    # Workaround for to choose the correct listen port for grpc connection on coordinator
+    echo 'grpc_ip_allowlist = cdw' >> /usr/local/greenplum-cc/conf/app.conf
 
     su - gpadmin <<EOF
        set -x

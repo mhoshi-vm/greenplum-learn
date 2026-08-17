@@ -183,7 +183,7 @@ resource "random_integer" "internal_subnet" {
 }
 
 resource "vsphere_resource_pool" "pool" {
-  name                    = "${local.prefix}${var.gp_release_version}-${var.resource_pool_name}"
+  name                    = "${local.prefix}-${var.resource_pool_name}"
   parent_resource_pool_id = data.vsphere_compute_cluster.compute_cluster.resource_pool_id
 }
 
