@@ -63,19 +63,25 @@ Steps run in this order, and each one is idempotent:
 | --- | --- |
 | `preflight` | validates the host, prints current vs target versions, asks for confirmation |
 | `download` | pulls every product file to `/home/gpadmin/gp_downloads`, skips what is already there |
-| `stop` | `gpcc stop` and `gpstop -M fast -a` |
+| `checkcat` | `gpcheckcat -A`, the documented pre-upgrade catalog check, reports only |
+| `stop` | backs up `$PXF_BASE` and stops PXF, `gpcc stop`, then the documented smart `gpstop -a` (falls back to `-M fast`) |
 | `os` | `yum -y update` on every host, then reports which hosts want a reboot |
-| `db` | installs the 7.8.3 rpm on the segments first, then the coordinator, restores the segment proxy config inside the new GPHOME |
+| `db` | `yum upgrade` of the 7.8.3 rpm, segments first, repoints the `greenplum-db` symlink explicitly, `chown -R gpadmin /usr/local/greenplum*`, restores the segment proxy config, and reports any custom line the old `greenplum_path.sh` had |
 | `start` | `gpstart -a` and prints the running version |
 | `gpdr` | greenplum-disaster-recovery on every host |
-| `gpcc` | creates the GPCC home on every host *before* running gpccinstall, reinstalls metrics_collector against the new GPHOME |
-| `pxf` | PXF from the `greenplum-pxf` product, then `pxf cluster register` against the new GPHOME |
+| `gpcc` | creates the GPCC home on every host first, then `gpccinstall -u` (reads the existing `app.conf`), then the documented metrics_collector recovery: drop the extension, `gppkg install`, restart the cluster |
+| `pxf` | PXF from the `greenplum-pxf` product with Java 17, `pxf cluster register` / `sync` / `start`, then `ALTER EXTENSION pxf UPDATE` in every database that has it |
 | `gpcopy` | gpcopy binaries into the new GPHOME |
 | `dsp` | DataSciencePython gppkg plus the `pgml.venv` / `plpython3.python_path` GUCs |
 | `madlib` `postgis` `plr` | the gppkgs, reinstalled because a GPDB upgrade replaces GPHOME |
 | `gptext` | skipped automatically when the gptext tarball is not available |
 | `gpmlbot` | pg_hba entries, gpmlbot database, extensions, migrations |
 | `finish` | final `gpstop -M fast -ra`, `gpcc start` and a summary |
+
+The procedures follow the Broadcom documentation:
+[Greenplum minor upgrade](https://techdocs.broadcom.com/us/en/vmware-tanzu/data-solutions/tanzu-greenplum/7/greenplum-database/install_guide-upgrading_minor.html),
+[GPCC upgrade](https://techdocs.broadcom.com/us/en/vmware-tanzu/data-solutions/tanzu-greenplum-command-center/7-1/gp-command-center/topics-install.html#upgrade),
+[PXF 7.x to 8.x upgrade](https://techdocs.broadcom.com/us/en/vmware-tanzu/data-solutions/tanzu-greenplum-platform-extension-framework/8-0/gp-pxf/upgrade_7_to_8.html).
 
 The core steps fail fast, the add-ons only warn so one bad package does not stop
 the rest. To resume after fixing something:

@@ -167,12 +167,13 @@ runcmd:
 
     if ls /home/gpadmin/gp_downloads/pxf*
     then
-      yum -y install java-11-openjdk.x86_64
+      # PXF 8 / GPtext requires Java 21
+      yum -y install java-21-openjdk.x86_64
 
       rpm -Uvh /home/gpadmin/gp_downloads/pxf*
       echo 'export GP_MAJOR_VER='"$${GP_MAJOR_VER}" >> /home/gpadmin/.bashrc
       echo 'export PATH=$PATH:/usr/local/pxf-gp$${GP_MAJOR_VER}/bin' >> /home/gpadmin/.bashrc
-      echo 'export JAVA_HOME=/usr/lib/jvm/jre'  >> /home/gpadmin/.bashrc
+      echo 'export JAVA_HOME=/usr/lib/jvm/jre-21-openjdk'  >> /home/gpadmin/.bashrc
       echo 'export PXF_BASE=/usr/local/pxf-gp$${GP_MAJOR_VER}'  >> /home/gpadmin/.bashrc
       chown -R gpadmin:gpadmin /usr/local/pxf-gp$${GP_MAJOR_VER}
     fi

@@ -6,11 +6,11 @@ variable "pivnet_url" {
 }
 
 variable "gp_release_version" {
-  default = "7.8.3"
+  default = "7.8.4"
 }
 
 variable "gpcc_release_version" {
-  default = "7.7.3"
+  default = "7.7.4"
 }
 
 variable "gpcopy_release_version" {
@@ -23,7 +23,7 @@ variable "pxf_product_slug" {
 }
 
 variable "pxf_release_version" {
-  default = "8.0.2"
+  default = "8.0.3"
 }
 
 # gptext is versioned independently from the database as well
@@ -32,5 +32,5 @@ variable "gptext_product_slug" {
 }
 
 variable "gptext_release_version" {
-  default = "3.10.1"
+  default = "4.0.3"
 }

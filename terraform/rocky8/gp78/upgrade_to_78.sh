@@ -38,12 +38,14 @@ GPHOME=/usr/local/greenplum-db
 NEW_GPHOME="/usr/local/greenplum-db-${GP_RELEASE_VERSION}"
 GPCC_HOME=/usr/local/greenplum-cc
 NEW_GPCC_HOME="/usr/local/greenplum-cc-${GPCC_RELEASE_VERSION}"
+PXF_HOME=/usr/local/pxf-gp7
+PXF_BASE="${PXF_BASE:-/usr/local/pxf-gp7}"
 LOG=/var/log/gp78_upgrade.log
 
-ALL_STEPS=(preflight download stop os db start gpdr gpcc pxf gpcopy dsp madlib postgis plr gptext gpmlbot finish)
+ALL_STEPS=(preflight download checkcat stop os db start gpdr gpcc pxf gpcopy dsp madlib postgis plr gptext gpmlbot finish)
 # The core upgrade fails fast. The add-ons only warn, one broken package should
 # not leave the rest of the cluster half configured, resume them with --only.
-OPTIONAL_STEPS=(gpdr gpcc pxf gpcopy dsp madlib postgis plr gptext gpmlbot)
+OPTIONAL_STEPS=(checkcat gpdr gpcc pxf gpcopy dsp madlib postgis plr gptext gpmlbot)
 ONLY=""
 SKIP=""
 ASSUME_YES=0
@@ -155,18 +157,53 @@ step_download() {
   chown -R gpadmin:gpadmin "$DOWNLOAD_DIR"
 }
 
+# Catalog check, a documented prerequisite of the minor version upgrade. Read
+# only, it just reports. gpcheckcat -g writes fix scripts if it finds anything.
+step_checkcat() {
+  log "running gpcheckcat, this takes a while on a large catalog"
+  as_gpadmin <<'EOS' || warn "gpcheckcat reported problems, review them before upgrading (gpcheckcat -g <dir> writes fix scripts)"
+source /usr/local/greenplum-db/greenplum_path.sh
+gpcheckcat -A
+EOS
+}
+
 step_stop() {
+  # PXF has to be stopped and its configuration backed up before the database
+  # is upgraded
+  if [[ -x "$PXF_HOME/bin/pxf" ]]; then
+    log "stopping PXF and backing up $PXF_BASE"
+    as_gpadmin <<EOS || warn "could not stop PXF cleanly"
+set -x
+source $GPHOME/greenplum_path.sh
+export PXF_BASE=$PXF_BASE
+$PXF_HOME/bin/pxf version
+cp -a $PXF_BASE $DOWNLOAD_DIR/pxf_base.bak.\$(date +%Y%m%d%H%M%S)
+$PXF_HOME/bin/pxf cluster stop
+EOS
+  fi
+
   as_gpadmin <<'EOS' || warn "gpcc was not running"
 source /usr/local/greenplum-db/greenplum_path.sh
 source /usr/local/greenplum-cc/gpcc_path.sh
 gpcc stop
 EOS
 
-  as_gpadmin <<'EOS'
+  # The documented procedure is a smart shutdown. It only refuses if sessions
+  # are still connected, and by now gpcc is down, so fall back rather than
+  # leave the operator staring at a hung gpstop.
+  if ! as_gpadmin <<'EOS'
+set -x
+source /usr/local/greenplum-db/greenplum_path.sh
+gpstop -a
+EOS
+  then
+    warn "smart shutdown did not complete, retrying with -M fast"
+    as_gpadmin <<'EOS'
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 gpstop -M fast -a
 EOS
+  fi
 }
 
 # Rocky Linux 8 package refresh, same 'yum update -y' the deploy does on every
@@ -201,9 +238,16 @@ step_db() {
     return 0
   fi
 
-  local rpm clients_rpm
+  local rpm clients_rpm old_gphome path_backup
   rpm=$(ls "$DOWNLOAD_DIR"/greenplum-db-${GP_RELEASE_VERSION}-*el8*.rpm | head -1)
   clients_rpm=$(ls "$DOWNLOAD_DIR"/greenplum-db-clients-${GP_RELEASE_VERSION}-*el8*.rpm | head -1)
+
+  # Keep the old greenplum_path.sh, it is the only record of the custom settings
+  # (LDAP, PL/Java, the plr R library path) that have to be carried forward
+  old_gphome=$(readlink -f "$GPHOME")
+  path_backup="$DOWNLOAD_DIR/greenplum_path.sh.$(basename "$old_gphome").bak"
+  cp "$old_gphome/greenplum_path.sh" "$path_backup"
+  log "old greenplum_path.sh saved to $path_backup"
 
   # Segments first, while the coordinator still has its old gpssh/gpsync
   log "pushing $(basename "$rpm") to the segment hosts"
@@ -212,19 +256,34 @@ set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 gpssh -f $HOSTS_SEGMENTS -e "mkdir -p $DOWNLOAD_DIR"
 gpsync -f $HOSTS_SEGMENTS $rpm =:$DOWNLOAD_DIR/
-gpssh -f $HOSTS_SEGMENTS -e "sudo yum -y install $DOWNLOAD_DIR/$(basename "$rpm")"
-gpssh -f $HOSTS_SEGMENTS -e "sudo chown -R gpadmin:gpadmin /usr/local/greenplum-db*"
-gpssh -f $HOSTS_SEGMENTS -e "sudo chgrp -R gpadmin /usr/local/greenplum-db*"
+gpssh -f $HOSTS_SEGMENTS -e "sudo yum -y upgrade $DOWNLOAD_DIR/$(basename "$rpm")"
+gpssh -f $HOSTS_SEGMENTS -e "sudo rm -f $GPHOME && sudo ln -s $NEW_GPHOME $GPHOME"
+gpssh -f $HOSTS_SEGMENTS -e "sudo chown -R gpadmin:gpadmin /usr/local/greenplum*"
+gpssh -f $HOSTS_SEGMENTS -e "sudo chgrp -R gpadmin /usr/local/greenplum*"
 EOS
 
   log "installing on the coordinator"
-  yum -y install "$rpm"
-  yum -y install "$clients_rpm"
-  chown -R gpadmin:gpadmin /usr/local/greenplum-db*
-  chgrp -R gpadmin /usr/local/greenplum-db*
+  yum -y upgrade "$rpm"
+  yum -y upgrade "$clients_rpm"
+
+  # The rpm normally repoints it, the documented procedure sets it explicitly
+  rm -f "$GPHOME"
+  ln -s "$NEW_GPHOME" "$GPHOME"
+  chown -R gpadmin:gpadmin /usr/local/greenplum*
+  chgrp -R gpadmin /usr/local/greenplum*
 
   [[ "$(readlink -f "$GPHOME")" == "$NEW_GPHOME" ]] \
     || die "$GPHOME still points at $(readlink -f "$GPHOME"), expected $NEW_GPHOME"
+
+  # Report anything the old greenplum_path.sh had that the new one does not, so
+  # custom settings are not lost silently
+  local lost
+  lost=$(comm -23 <(sort "$path_backup") <(sort "$NEW_GPHOME/greenplum_path.sh") || true)
+  if [[ -n "$lost" ]]; then
+    warn "these lines were in the old greenplum_path.sh and are not in the new one:"
+    echo "$lost" | sed 's/^/    /' >&2
+    warn "the plr step re-adds the R library path, carry anything else over by hand"
+  fi
 
   # The proxy config lives inside GPHOME, so the new install needs it again
   log "restoring the segment proxy environment"
@@ -261,31 +320,37 @@ step_gpdr() {
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 gpsync -f $HOSTS_SEGMENTS $rpm =:$DOWNLOAD_DIR/
-gpssh -f $HOSTS_SEGMENTS -e "sudo rpm -Uvh --replacepkgs $DOWNLOAD_DIR/$(basename "$rpm")"
+gpssh -f $HOSTS_SEGMENTS -e "sudo rpm -Uvh $DOWNLOAD_DIR/$(basename "$rpm")"
 gpssh -f $HOSTS_SEGMENTS -e "sudo chown -R gpadmin:gpadmin /usr/local/gpdr"
 EOS
-  rpm -Uvh --replacepkgs "$rpm"
+  rpm -Uvh "$rpm"
   chown -R gpadmin:gpadmin /usr/local/gpdr
 }
 
 step_gpcc() {
-  # metrics_collector lives inside GPHOME, a GPDB upgrade always takes it with
-  # it, so GPCC has to be installed again against the new GPHOME
+  # Where the running install lives, gpccinstall -u reads its parameters from
+  # that app.conf. Empty when there is no GPCC yet.
+  local old_gpcc_home=""
+  if [[ -e "$GPCC_HOME/conf/app.conf" ]]; then
+    old_gpcc_home=$(readlink -f "$GPCC_HOME")
+    log "existing GPCC found at $old_gpcc_home, upgrading with gpccinstall -u"
+  else
+    log "no existing GPCC install, doing a fresh install from gpcc_config"
+  fi
+
   log "preparing $NEW_GPCC_HOME on every host"
   mkdir -p "$NEW_GPCC_HOME"
   chown -R gpadmin:gpadmin "$NEW_GPCC_HOME"
-  ln -sfn "$NEW_GPCC_HOME" "$GPCC_HOME"
-  chown -h gpadmin:gpadmin "$GPCC_HOME"
 
   # Segment side has to exist before gpccinstall runs, gpadmin cannot create it
   # under /usr/local itself. This is what left the agents dead on the 08-12 run.
+  # The greenplum-cc symlink is repointed after the install so that -u can still
+  # read the old app.conf.
   as_gpadmin <<EOS
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 gpssh -f $HOSTS_SEGMENTS -e "sudo mkdir -p $NEW_GPCC_HOME"
 gpssh -f $HOSTS_SEGMENTS -e "sudo chown -R gpadmin:gpadmin $NEW_GPCC_HOME"
-gpssh -f $HOSTS_SEGMENTS -e "sudo ln -sfn $NEW_GPCC_HOME $GPCC_HOME"
-gpssh -f $HOSTS_SEGMENTS -e "sudo chown -h gpadmin:gpadmin $GPCC_HOME"
 EOS
 
   # Carry the old web certificate over, or make a fresh self signed one
@@ -319,9 +384,20 @@ EOS
   chown gpadmin:gpadmin /home/gpadmin/gpcc_config
 
   rm -rf /home/gpadmin/greenplum-cc-web-${GPCC_RELEASE_VERSION}-*
-  # gpccinstall prompts for the mTLS settings, it is the last command in the
-  # fragment on purpose so the prompts hit EOF and take their defaults
-  as_gpadmin <<EOS
+
+  if [[ -n "$old_gpcc_home" ]]; then
+    # Documented upgrade: -u takes every parameter from the existing app.conf,
+    # so GPCC_HOME must still point at the old install while it runs
+    as_gpadmin <<EOS
+set -x
+source /usr/local/greenplum-db/greenplum_path.sh
+source $old_gpcc_home/gpcc_path.sh
+unzip -o $DOWNLOAD_DIR/greenplum-cc-web-*.zip -d /home/gpadmin/
+cd /home/gpadmin/greenplum-cc-web-${GPCC_RELEASE_VERSION}-*
+./gpccinstall-${GPCC_RELEASE_VERSION} -u
+EOS
+  else
+    as_gpadmin <<EOS
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 gpconfig -c shared_preload_libraries -v 'metrics_collector'
@@ -330,19 +406,52 @@ gpstop -M fast -r -a
 cd /home/gpadmin/greenplum-cc-web-${GPCC_RELEASE_VERSION}-*
 ./gpccinstall-${GPCC_RELEASE_VERSION} -c /home/gpadmin/gpcc_config
 EOS
+  fi
+
+  # Now the new install owns the symlink, on every host
+  ln -sfn "$NEW_GPCC_HOME" "$GPCC_HOME"
+  chown -h gpadmin:gpadmin "$GPCC_HOME"
+  as_gpadmin <<EOS
+set -x
+source /usr/local/greenplum-db/greenplum_path.sh
+gpssh -f $HOSTS_SEGMENTS -e "sudo ln -sfn $NEW_GPCC_HOME $GPCC_HOME"
+gpssh -f $HOSTS_SEGMENTS -e "sudo chown -h gpadmin:gpadmin $GPCC_HOME"
+EOS
+
+  # GPCC ships the extension update procedure with the release when the
+  # metrics collector changed, show it before acting on it
+  [[ -f "$NEW_GPCC_HOME/update-extension.txt" ]] && cat "$NEW_GPCC_HOME/update-extension.txt"
 
   if ! have "$NEW_GPHOME/lib/postgresql/metrics_collector.so"; then
-    log "installing the metrics_collector gppkg into $NEW_GPHOME"
+    # A GPDB upgrade leaves metrics_collector behind in the old GPHOME. The
+    # documented recovery is to drop the extension and install the package that
+    # ships with GPCC, then restart the cluster. Never 'gppkg migrate' this one
+    # across a GPDB upgrade, and there is nothing to 'gppkg remove' because the
+    # new GPHOME has no metrics_collector registered.
+    log "reinstalling metrics_collector into $NEW_GPHOME"
     as_gpadmin <<EOS
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 source $GPCC_HOME/gpcc_path.sh
+gpcc stop || true
+psql -d gpperfmon -c 'drop extension if exists metrics_collector' || true
 cd $GPCC_HOME/gppkg
 gppkg install -a \$(ls *${GPCC_RELEASE_VERSION}* | tail -1)
 EOS
+
+    log "restarting the cluster so the new metrics_collector is loaded"
+    as_gpadmin <<'EOS'
+set -x
+source /usr/local/greenplum-db/greenplum_path.sh
+gpconfig -c shared_preload_libraries -v 'metrics_collector'
+gpstop -M fast -r -a
+EOS
   fi
 
-  # Pin the grpc listener to the coordinator interface
+  # Pin the grpc listener to the coordinator interface and keep the channel
+  # plain, matching the deploy templates
+  grep -q '^enable_grpc_tls' "$NEW_GPCC_HOME/conf/app.conf" \
+    || echo 'enable_grpc_tls = false' >> "$NEW_GPCC_HOME/conf/app.conf"
   grep -q '^grpc_ip_allowlist' "$NEW_GPCC_HOME/conf/app.conf" \
     || echo 'grpc_ip_allowlist = cdw' >> "$NEW_GPCC_HOME/conf/app.conf"
 
@@ -357,37 +466,73 @@ EOS
 
 step_pxf() {
   have "$DOWNLOAD_DIR/pxf-gp7-*.rpm" || { warn "no pxf rpm downloaded, skipping"; return 0; }
-  local rpm
+  local rpm pxf_major java_pkg java_home
   rpm=$(ls "$DOWNLOAD_DIR"/pxf-gp7-*.rpm | head -1)
 
-  log "installing $(basename "$rpm") on every host"
-  yum -y install java-11-openjdk.x86_64
-  rpm -Uvh --replacepkgs "$rpm"
+  # PXF 8 requires Java 17 or 21, PXF 6/7 run on Java 11
+  pxf_major="${PXF_RELEASE_VERSION%%.*}"
+  if [[ "$pxf_major" -ge 8 ]]; then java_pkg=java-17-openjdk; else java_pkg=java-11-openjdk; fi
+
+  log "installing $(basename "$rpm") with $java_pkg on every host"
+  yum -y install "$java_pkg.x86_64"
+  rpm -Uvh "$rpm"
 
   as_gpadmin <<EOS
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
 gpsync -f $HOSTS_SEGMENTS $rpm =:$DOWNLOAD_DIR/
-gpssh -f $HOSTS_SEGMENTS -e "sudo yum -y install java-11-openjdk.x86_64"
-gpssh -f $HOSTS_SEGMENTS -e "sudo rpm -Uvh --replacepkgs $DOWNLOAD_DIR/$(basename "$rpm")"
-gpssh -f $HOSTS_ALL -e "sudo chown -R gpadmin:gpadmin /usr/local/pxf-gp7"
+gpssh -f $HOSTS_SEGMENTS -e "sudo yum -y install $java_pkg.x86_64"
+gpssh -f $HOSTS_SEGMENTS -e "sudo rpm -Uvh $DOWNLOAD_DIR/$(basename "$rpm")"
+gpssh -f $HOSTS_ALL -e "sudo chown -R gpadmin:gpadmin $PXF_HOME"
 EOS
 
+  # Prefer the stable jvm symlinks over the patch versioned directory, which
+  # changes every time the jre is updated
+  local jver="${java_pkg#java-}"; jver="${jver%%-*}"
+  java_home=""
+  for cand in "/usr/lib/jvm/jre-$jver-openjdk" "/usr/lib/jvm/jre-$jver" \
+              $(ls -d /usr/lib/jvm/java-"$jver"-openjdk-* 2>/dev/null || true) \
+              /usr/lib/jvm/jre; do
+    [[ -d "$cand" ]] && { java_home="$cand"; break; }
+  done
+  [[ -n "$java_home" ]] || die "no Java $jver found under /usr/lib/jvm after installing $java_pkg"
+  log "JAVA_HOME for PXF: $java_home"
+
   for var in 'export GP_MAJOR_VER=7' \
-             'export PATH=$PATH:/usr/local/pxf-gp7/bin' \
-             'export JAVA_HOME=/usr/lib/jvm/jre' \
-             'export PXF_BASE=/usr/local/pxf-gp7'; do
+             "export PATH=\$PATH:$PXF_HOME/bin" \
+             "export JAVA_HOME=$java_home" \
+             "export PXF_BASE=$PXF_BASE"; do
     grep -qxF "$var" /home/gpadmin/.bashrc || echo "$var" >> /home/gpadmin/.bashrc
   done
 
-  # register copies the pxf extension files into the new GPHOME
-  as_gpadmin <<'EOS' || warn "pxf register/start failed, check pxf cluster status"
+  # register copies the pxf extension files into the new GPHOME, sync pushes the
+  # configuration to the segment hosts, both need GPHOME and PXF_BASE set
+  as_gpadmin <<EOS || warn "pxf register/sync/start failed, check 'pxf cluster status'"
 set -x
 source /usr/local/greenplum-db/greenplum_path.sh
-export JAVA_HOME=/usr/lib/jvm/jre
-export PXF_BASE=/usr/local/pxf-gp7
-/usr/local/pxf-gp7/bin/pxf cluster register
-/usr/local/pxf-gp7/bin/pxf cluster start
+export JAVA_HOME=$java_home
+export PXF_BASE=$PXF_BASE
+$PXF_HOME/bin/pxf cluster register
+if [ -f $PXF_BASE/clusters/default/groups/default/conf/pxf-env.sh ]; then
+  sed -i "s|^[# ]*export JAVA_HOME=.*|export JAVA_HOME=$java_home|" $PXF_BASE/clusters/default/groups/default/conf/pxf-env.sh
+  grep -q "^export JAVA_HOME=" $PXF_BASE/clusters/default/groups/default/conf/pxf-env.sh || echo "export JAVA_HOME=$java_home" >> $PXF_BASE/clusters/default/groups/default/conf/pxf-env.sh
+fi
+$PXF_HOME/bin/pxf cluster sync
+$PXF_HOME/bin/pxf cluster start
+EOS
+
+  # Every database that already has the extension needs it updated to the new
+  # version, pxf_fdw as well on Greenplum 7
+  as_gpadmin <<'EOS' || warn "could not update the pxf extensions, run ALTER EXTENSION pxf UPDATE by hand"
+source /usr/local/greenplum-db/greenplum_path.sh
+for db in $(psql -d postgres -tAc "select datname from pg_database where datallowconn and datname <> 'template0'"); do
+  for ext in pxf pxf_fdw; do
+    if psql -d "$db" -tAc "select 1 from pg_extension where extname='$ext'" | grep -q 1; then
+      echo "updating $ext in $db"
+      psql -d "$db" -c "ALTER EXTENSION $ext UPDATE"
+    fi
+  done
+done
 EOS
 }
 
